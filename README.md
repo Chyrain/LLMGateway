@@ -5,11 +5,12 @@
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-green)
 ![Vue](https://img.shields.io/badge/vue-3.4+-yellow)
+![Tests](https://img.shields.io/badge/tests-39%20passed-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
 **标准化OpenAI兼容协议的大模型免费额度自动切换网关**
 
-[English](README_EN.md) | 简体中文
+简体中文
 
 </div>
 
@@ -21,8 +22,8 @@
 - [架构设计](#架构设计)
 - [使用指南](#使用指南)
 - [Agent工具适配](#agent工具适配)
-- [部署文档](#部署文档)
-- [API文档](#api文档)
+- [部署文档](docs/DEPLOY.md)
+- [API文档](docs/API.md)
 - [常见问题](#常见问题)
 - [贡献指南](#贡献指南)
 - [许可证](#许可证)
