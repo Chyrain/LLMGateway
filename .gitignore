@@ -1,0 +1,135 @@
+# ============================================
+# 灵模网关 - .gitignore
+# ============================================
+
+# ---------------- 操作系统 ----------------
+# macOS
+.DS_Store
+*.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*.swp
+*.swo
+*~
+
+# ---------------- Python ----------------
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+cover/
+*.cover
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# ---------------- Node.js ----------------
+# Dependencies
+node_modules/
+bower_components/
+
+# Build
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ---------------- IDE ----------------
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Eclipse
+.metadata/
+*.launch
+*.sublime-*
+
+# ---------------- 数据库 ----------------
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# ---------------- Docker ----------------
+.docker/
+docker-compose.override.yml
+
+# ---------------- 环境配置 ----------------
+.env
+.env.local
+.env.*.local
+*.local
+
+# ---------------- 临时文件 ----------------
+*.tmp
+*.temp
+tmp/
+temp/
+.cache/
+
+# ---------------- 上传文件 ----------------
+uploads/
+upload/
+
+# ---------------- 其他 ----------------
+*.bak
+*.backup
+*.swp
+*.suo
+*.otf
+*.ttf
+.cache/

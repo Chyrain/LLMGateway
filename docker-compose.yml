@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 后端API服务
+  backend:
+    build: ./backend
+    container_name: llmgateway-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/data/llmgateway.db
+      - ENCRYPT_KEY=${ENCRYPT_KEY:-your-256-bit-encryption-key-here}
+      - GATEWAY_PORT=8080
+      - LOG_LEVEL=INFO
+      - SWITCH_THRESHOLD=99
+      - SYNC_INTERVAL=10
+    volumes:
+      - backend_data:/data
+      - ./backend/logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 网关服务（与后端共用）
+  gateway:
+    build: ./backend
+    container_name: llmgateway-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/data/llmgateway.db
+      - ENCRYPT_KEY=${ENCRYPT_KEY:-your-256-bit-encryption-key-here}
+      - API_PORT=8000
+      - GATEWAY_MODE=true
+    volumes:
+      - backend_data:/data
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # 前端管理平台
+  frontend:
+    build: ./frontend
+    container_name: llmgateway-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:
+  frontend_dist:
+
+networks:
+  default:
+    name: llmgateway-network

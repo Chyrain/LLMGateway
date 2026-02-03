@@ -1,0 +1,192 @@
+{
+  "vendors": {
+    "openai": {
+      "name": "OpenAI",
+      "logo": "https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg",
+      "models": ["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"],
+      "api_base": "https://api.openai.com",
+      "api_path": "/v1/chat/completions",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "gpt-3.5-turbo": "免费额度已调整，请查阅官网",
+        "gpt-4o": "无免费额度"
+      },
+      "param_mapping": {
+        "max_tokens": "max_tokens"
+      }
+    },
+    "qwen": {
+      "name": "通义千问",
+      "logo": "https://img.alicdn.com/imgextra/i1/O1CN01VCI5Fb1X2eVI8X5Yj_!!6000000003362-2-tps-800-800.png",
+      "models": ["qwen-turbo", "qwen-plus", "qwen-max"],
+      "api_base": "https://dashscope.aliyuncs.com",
+      "api_path": "/api/v1/services/aigc/text-generation/generation",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "qwen-turbo": "100万Tokens",
+        "qwen-plus": "100万Tokens"
+      },
+      "param_mapping": {
+        "max_tokens": "max_output_tokens",
+        "temperature": "temperature"
+      }
+    },
+    "zhipu": {
+      "name": "智谱清言",
+      "logo": "https://www.bigmodel.cn/favicon.ico",
+      "models": ["glm-3-turbo", "glm-4", "glm-4v"],
+      "api_base": "https://open.bigmodel.cn",
+      "api_path": "/api/llm/v3.5/chatcompletions_pro",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "glm-3-turbo": "100万Tokens",
+        "glm-4": "100万Tokens"
+      },
+      "param_mapping": {
+        "max_tokens": "max_output_tokens"
+      }
+    },
+    "spark": {
+      "name": "讯飞星火",
+      "logo": "https://www.xfyun.cn/favicon.ico",
+      "models": ["spark-v3.1", "spark-v3.5"],
+      "api_base": "https://spark-api.xf-yun.com",
+      "api_path": "/v3.1/chat",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "spark-v3.1": "100万Tokens",
+        "spark-v3.5": "200万Tokens"
+      },
+      "param_mapping": {
+        "max_tokens": "max_tokens"
+      }
+    },
+    "doubao": {
+      "name": "字节豆包",
+      "logo": "https://www.volcengine.com/favicon.ico",
+      "models": ["Doubao-pro-32k"],
+      "api_base": "https://ark.cn-beijing.volces.com",
+      "api_path": "/api/v3/bots/chat_sessions",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "Doubao-pro-32k": "50万Tokens"
+      },
+      "param_mapping": {}
+    },
+    "claude": {
+      "name": "Anthropic Claude",
+      "logo": "https://www.anthropic.com/favicon.ico",
+      "models": ["claude-sonnet-4-20250514", "claude-haiku-3-20250514"],
+      "api_base": "https://api.anthropic.com",
+      "api_path": "/v1/messages",
+      "auth_header": "x-api-key",
+      "auth_format": "",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "claude-sonnet-4-20250514": "无免费额度（已调整）",
+        "claude-haiku-3-20250514": "免费使用"
+      },
+      "extra_headers": {
+        "anthropic-version": "2023-06-01"
+      },
+      "param_mapping": {
+        "max_tokens": "max_tokens"
+      }
+    },
+    "gemini": {
+      "name": "Google Gemini",
+      "logo": "https://www.gemini.google.com/favicon.ico",
+      "models": ["gemini-pro", "gemini-pro-vision"],
+      "api_base": "https://generativelanguage.googleapis.com",
+      "api_path": "/v1beta/models/gemini-pro:generateContent",
+      "auth_header": "x-goog-api-key",
+      "auth_format": "",
+      "stream_support": false,
+      "quota_api": false,
+      "free_quota": {
+        "gemini-pro": "免费使用（有限制）"
+      },
+      "param_mapping": {
+        "max_tokens": "max_output_tokens"
+      }
+    },
+    "mistral": {
+      "name": "Mistral AI",
+      "logo": "https://mistral.ai/favicon.ico",
+      "models": ["mistral-tiny", "mistral-small", "mistral-medium"],
+      "api_base": "https://api.mistral.ai",
+      "api_path": "/v1/chat/completions",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "mistral-tiny": "免费使用",
+        "mistral-small": "免费使用"
+      },
+      "param_mapping": {
+        "max_tokens": "max_tokens"
+      }
+    },
+    "perplexity": {
+      "name": "Perplexity",
+      "logo": "https://www.perplexity.ai/favicon.ico",
+      "models": ["sonar", "sonar-pro"],
+      "api_base": "https://api.perplexity.ai",
+      "api_path": "/chat/completions",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "sonar": "免费额度有限"
+      },
+      "param_mapping": {}
+    },
+    "groq": {
+      "name": "Groq (Llama 3)",
+      "logo": "https://groq.com/favicon.ico",
+      "models": ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768"],
+      "api_base": "https://api.groq.com",
+      "api_path": "/openai/v1/chat/completions",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "quota_api": false,
+      "free_quota": {
+        "llama3-8b-8192": "免费使用",
+        "llama3-70b-8192": "免费使用"
+      },
+      "param_mapping": {
+        "max_tokens": "max_tokens"
+      }
+    }
+  },
+  "default_params": {
+    "temperature": 0.7,
+    "max_tokens": 4096,
+    "top_p": 0.95
+  },
+  "switch_config": {
+    "default_threshold": 99,
+    "check_interval": 10,
+    "retry_count": 3,
+    "retry_delay": 1
+  }
+}
