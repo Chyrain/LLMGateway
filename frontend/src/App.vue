@@ -62,13 +62,55 @@
             </div>
             
             <div class="header-right">
-              <el-badge :value="alertCount" :hidden="alertCount === 0" class="alert-badge">
-                <el-icon @click="toggleNotifications"><Bell /></el-icon>
-              </el-badge>
-              <el-dropdown @command="handleCommand">
+              <el-popover
+                placement="bottom-end"
+                :width="360"
+                trigger="click"
+                @show="fetchNotifications"
+              >
+                <template #reference>
+                  <el-badge :value="alertCount" :hidden="alertCount === 0" class="alert-badge">
+                    <el-icon><Bell /></el-icon>
+                  </el-badge>
+                </template>
+                <div class="notification-panel">
+                  <div class="notification-header">
+                    <span>消息通知</span>
+                    <el-button text type="primary" size="small" @click="markAllRead" v-if="notifications.length > 0">
+                      全部已读
+                    </el-button>
+                  </div>
+                  <el-scrollbar class="notification-list" v-if="notifications.length > 0">
+                    <div
+                      v-for="notif in notifications"
+                      :key="notif.id"
+                      class="notification-item"
+                      :class="{ unread: !notif.is_read }"
+                      @click="handleNotificationClick(notif)"
+                    >
+                      <div class="notif-icon">
+                        <el-icon v-if="notif.type === 'warning'"><Warning /></el-icon>
+                        <el-icon v-else-if="notif.type === 'success'"><SuccessFilled /></el-icon>
+                        <el-icon v-else-if="notif.type === 'error'"><CircleCloseFilled /></el-icon>
+                        <el-icon v-else><InfoFilled /></el-icon>
+                      </div>
+                      <div class="notif-content">
+                        <div class="notif-title">{{ notif.title }}</div>
+                        <div class="notif-message">{{ notif.message }}</div>
+                        <div class="notif-time">{{ formatTime(notif.create_time) }}</div>
+                      </div>
+                    </div>
+                  </el-scrollbar>
+                  <div class="notification-empty" v-else>
+                    <el-icon size="48"><Bell /></el-icon>
+                    <p>暂无通知</p>
+                  </div>
+                </div>
+              </el-popover>
+              <el-dropdown @command="handleCommand" trigger="click">
                 <span class="user-info">
                   <el-avatar :size="32" src="https://api.dicebear.com/7.x/avataaars/svg?seed=admin" />
-                  <span class="username">管理员</span>
+                  <span class="username">{{ username }}</span>
                 </span>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -94,7 +136,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, DataBoard, Setting, PieChart, Tools, Document, Connection, Bell, Fold, Expand, User, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { Monitor, DataBoard, Setting, PieChart, Tools, Document, Connection, Bell, Fold, Expand, User, Lock, SwitchButton, Warning, SuccessFilled, CircleCloseFilled, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { authApi, notificationApi } from '@/api'
@@ -106,17 +148,63 @@ const isCollapsed = ref(false)
 const alertCount = ref(0)
 const showNotifications = ref(false)
 const username = ref('管理员')
+const notifications = ref([])
 
 // 获取未读通知数量
 const fetchUnreadCount = async () => {
   try {
-    const response = await notificationApi.unreadCount()
-    if (response.code === 200) {
-      alertCount.value = response.data?.count || 0
-    }
+    const data = await notificationApi.unreadCount()
+    alertCount.value = data?.count || 0
   } catch (error) {
     console.error('获取未读通知数量失败:', error)
   }
+}
+
+// 获取通知列表
+const fetchNotifications = async () => {
+  try {
+    const data = await notificationApi.list({ limit: 10 })
+    notifications.value = data || []
+  } catch (error) {
+    console.error('获取通知列表失败:', error)
+  }
+}
+
+// 标记全部已读
+const markAllRead = async () => {
+  try {
+    await notificationApi.markAllRead()
+    notifications.value = notifications.value.map(n => ({ ...n, is_read: true }))
+    alertCount.value = 0
+    ElMessage.success('已全部标记为已读')
+  } catch (error) {
+    console.error('标记已读失败:', error)
+  }
+}
+
+// 处理通知点击
+const handleNotificationClick = async (notif) => {
+  if (!notif.is_read) {
+    try {
+      await notificationApi.markRead(notif.id)
+      notif.is_read = true
+      alertCount.value = Math.max(0, alertCount.value - 1)
+    } catch (error) {
+      console.error('标记已读失败:', error)
+    }
+  }
+}
+
+// 格式化时间
+const formatTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  const now = new Date()
+  const diff = now - date
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return date.toLocaleDateString()
 }
 
 // 页面加载时获取通知数量
@@ -142,14 +230,6 @@ const currentPageTitle = computed(() => {
   }
   return titles[route.path] || '仪表盘'
 })
-
-// 打开通知面板
-const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value
-  if (showNotifications.value) {
-    fetchUnreadCount()
-  }
-}
 
 // 打开个人中心
 const goToProfile = () => {
@@ -300,5 +380,81 @@ const handleCommand = (command) => {
   background: #f5f7fa;
   padding: 20px;
   overflow-y: auto;
+}
+
+.notification-panel {
+  .notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ebeef5;
+    margin-bottom: 12px;
+    font-weight: bold;
+  }
+  
+  .notification-list {
+    max-height: 320px;
+    
+    .notification-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      
+      &:hover {
+        background: #f5f7fa;
+      }
+      
+      &.unread {
+        background: #ecf5ff;
+        
+        &:hover {
+          background: #d9ecff;
+        }
+      }
+      
+      .notif-icon {
+        font-size: 20px;
+        color: #909399;
+      }
+      
+      .notif-content {
+        flex: 1;
+        min-width: 0;
+        
+        .notif-title {
+          font-weight: 500;
+          margin-bottom: 4px;
+        }
+        
+        .notif-message {
+          font-size: 12px;
+          color: #909399;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .notif-time {
+          font-size: 12px;
+          color: #c0c4cc;
+          margin-top: 4px;
+        }
+      }
+    }
+  }
+  
+  .notification-empty {
+    text-align: center;
+    padding: 40px 0;
+    color: #909399;
+    
+    p {
+      margin-top: 12px;
+    }
+  }
 }
 </style>
