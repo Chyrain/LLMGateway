@@ -8,6 +8,12 @@ const routes = [
     meta: { title: '登录', requiresAuth: false }
   },
   {
+    path: '/welcome',
+    name: 'Welcome',
+    component: () => import('@/views/Welcome.vue'),
+    meta: { title: '欢迎使用', requiresAuth: true }
+  },
+  {
     path: '/',
     name: 'Dashboard',
     component: () => import('@/views/Dashboard.vue'),
@@ -62,6 +68,12 @@ const router = createRouter({
   routes
 })
 
+// 检查是否是首次登录
+const isFirstLogin = () => {
+  const hasVisited = localStorage.getItem('llmgateway_visited')
+  return !hasVisited
+}
+
 // 认证守卫
 router.beforeEach((to, from, next) => {
   document.title = `${to.meta.title || '首页'} - 灵模网关`
@@ -73,8 +85,16 @@ router.beforeEach((to, from, next) => {
     // 需要登录但没有 token，跳转到登录页
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.name === 'Login' && token) {
-    // 已登录但访问登录页，跳转到首页
-    next({ name: 'Dashboard' })
+    // 已登录访问登录页
+    // 检查是否是首次登录
+    if (isFirstLogin()) {
+      next({ name: 'Welcome' })
+    } else {
+      next({ name: 'Dashboard' })
+    }
+  } else if (to.name === 'Dashboard' && token && isFirstLogin()) {
+    // 首次登录访问仪表盘，跳转到欢迎页
+    next({ name: 'Welcome' })
   } else {
     next()
   }

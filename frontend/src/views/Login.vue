@@ -96,8 +96,16 @@ const handleLogin = async () => {
         localStorage.setItem('token', token)
         localStorage.setItem('username', response.username || loginForm.username)
         
-        ElMessage.success('登录成功')
-        router.push('/')
+        // 检查是否是首次登录（没有设置过标记）
+        if (!localStorage.getItem('llmgateway_visited')) {
+          localStorage.setItem('llmgateway_visited', 'true')
+          // 首次登录，跳转到欢迎页
+          ElMessage.success('登录成功')
+          router.push('/welcome')
+        } else {
+          ElMessage.success('登录成功')
+          router.push('/')
+        }
       } else {
         ElMessage.error(response.detail || '登录失败')
       }

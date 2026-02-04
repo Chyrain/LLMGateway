@@ -248,8 +248,10 @@ const fetchDashboardData = async () => {
   loading.value = true
   try {
     const response = await statsApi.dashboard()
+    
     // 响应拦截器返回 { code, msg, data }
-    if (response && response.data) {
+    // 所以 response 就是 { code, msg, data }
+    if (response && response.code === 200 && response.data) {
       const data = response.data
       stats.value = data.stats || {
         totalRequests: 0,
@@ -263,8 +265,6 @@ const fetchDashboardData = async () => {
     }
   } catch (error) {
     console.error('获取仪表盘数据失败:', error)
-    // 显示空数据友好提示
-    ElMessage.warning('暂无数据，请先配置模型')
   } finally {
     loading.value = false
   }
@@ -274,7 +274,9 @@ const fetchTrendData = async () => {
   try {
     const days = trendPeriod.value === '7d' ? 7 : 30
     const response = await statsApi.trends({ days })
-    if (response && response.data) {
+    
+    // 响应格式: { code, msg, data: { trend: [...] } }
+    if (response && response.code === 200 && response.data) {
       trendData.value = response.data.trend || []
     } else {
       trendData.value = generateMockTrendData(days)
@@ -288,8 +290,11 @@ const fetchTrendData = async () => {
 const fetchModelRankings = async () => {
   try {
     const response = await statsApi.models()
-    if (response && response.data && response.data.rankings) {
-      modelRankings.value = response.data.rankings.map(item => ({
+    
+    // 响应格式: { code, msg, data: { rankings: [...] } }
+    if (response && response.code === 200 && response.data) {
+      const rankings = response.data.rankings || []
+      modelRankings.value = rankings.map(item => ({
         value: item.requests,
         name: item.model
       }))
