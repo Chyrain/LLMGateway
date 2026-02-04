@@ -92,18 +92,41 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Monitor, DataBoard, Setting, PieChart, Tools, Document, Connection, Bell, Fold, Expand, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import { authApi, notificationApi } from '@/api'
 
 const locale = zhCn
 const route = useRoute()
 const router = useRouter()
 const isCollapsed = ref(false)
-const alertCount = ref(2)
+const alertCount = ref(0)
 const showNotifications = ref(false)
+const username = ref('管理员')
+
+// 获取未读通知数量
+const fetchUnreadCount = async () => {
+  try {
+    const response = await notificationApi.unreadCount()
+    if (response.code === 200) {
+      alertCount.value = response.data?.count || 0
+    }
+  } catch (error) {
+    console.error('获取未读通知数量失败:', error)
+  }
+}
+
+// 页面加载时获取通知数量
+onMounted(() => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    username.value = localStorage.getItem('username') || '管理员'
+    fetchUnreadCount()
+  }
+})
 
 const activeMenu = computed(() => route.path)
 const currentPageTitle = computed(() => {
@@ -123,6 +146,9 @@ const currentPageTitle = computed(() => {
 // 打开通知面板
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value
+  if (showNotifications.value) {
+    fetchUnreadCount()
+  }
 }
 
 // 打开个人中心
@@ -143,8 +169,21 @@ const handleLogout = async () => {
       cancelButtonText: '取消',
       type: 'warning'
     })
+    
+    // 调用退出登录 API
+    try {
+      await authApi.logout()
+    } catch (error) {
+      // API 调用失败也继续清除本地状态
+      console.log('退出登录 API 调用失败，继续清除本地状态')
+    }
+    
+    // 清除本地存储
+    localStorage.removeItem('token')
+    localStorage.removeItem('username')
+    
     ElMessage.success('已退出登录')
-    router.push('/')
+    router.push('/login')
   } catch {
     // 用户取消
   }

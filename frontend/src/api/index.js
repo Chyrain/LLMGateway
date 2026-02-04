@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
@@ -24,7 +25,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => response.data,
   error => {
-    const message = error.response?.data?.msg || '请求失败'
+    const message = error.response?.data?.msg || error.response?.data?.detail || '请求失败'
     ElMessage.error(message)
     return Promise.reject(error)
   }
@@ -36,6 +37,28 @@ export const handleResponse = (res) => {
     return res.data
   }
   throw new Error(res.msg || '请求失败')
+}
+
+// 认证相关
+export const authApi = {
+  login: (username, password) => {
+    return api.post('/auth/login', null, {
+      auth: { username, password }
+    })
+  },
+  logout: () => api.post('/auth/logout'),
+  profile: () => api.get('/auth/profile')
+}
+
+// 消息通知相关
+export const notificationApi = {
+  list: (params) => api.get('/notifications', { params }),
+  create: (data) => api.post('/notifications', data),
+  markRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  clearRead: () => api.delete('/notifications/clear-read'),
+  unreadCount: () => api.get('/notifications/unread-count')
 }
 
 // 模型配置相关
@@ -76,8 +99,10 @@ export const logApi = {
 // 统计相关
 export const statsApi = {
   dashboard: () => api.get('/stats/dashboard'),
-  trends: (params) => api.get('/stats/trends', { params }),
-  usage: (params) => api.get('/stats/usage', { params })
+  trends: (params) => api.get('/stats/usage', { params }),
+  usage: (params) => api.get('/stats/usage', { params }),
+  models: () => api.get('/stats/models'),
+  quota: () => api.get('/stats/quota')
 }
 
 // 网关健康检查

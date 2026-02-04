@@ -174,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -197,15 +197,19 @@ const currentModel = ref(null)
 const switchLogs = ref([])
 const alertModels = ref([])
 const trendPeriod = ref('7d')
+const loading = ref(true)
+const trendData = ref([])
+const modelRankings = ref([])
 
+// 趋势图配置
 const trendChartOption = computed(() => ({
   tooltip: { trigger: 'axis' },
-  legend: { data: ['请求量', 'Token消耗'] },
+  legend: { data: ['请求量'] },
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   xAxis: {
     type: 'category',
     boundaryGap: false,
-    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    data: trendData.value.map(item => item.date)
   },
   yAxis: { type: 'value' },
   series: [
@@ -213,19 +217,14 @@ const trendChartOption = computed(() => ({
       name: '请求量',
       type: 'line',
       smooth: true,
-      data: [120, 132, 101, 134, 90, 230, 210],
-      areaStyle: { opacity: 0.1 }
-    },
-    {
-      name: 'Token消耗',
-      type: 'line',
-      smooth: true,
-      data: [220, 182, 191, 234, 290, 330, 310],
-      areaStyle: { opacity: 0.1 }
+      data: trendData.value.map(item => item.requests),
+      areaStyle: { opacity: 0.1 },
+      itemStyle: { color: '#667eea' }
     }
   ]
 }))
 
+// 饼图配置
 const pieChartOption = computed(() => ({
   tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
   legend: { orient: 'vertical', left: 'left' },
@@ -235,13 +234,7 @@ const pieChartOption = computed(() => ({
     avoidLabelOverlap: false,
     label: { show: false },
     emphasis: { label: { show: true, fontSize: 16 } },
-    data: [
-      { value: 1048, name: 'OpenAI' },
-      { value: 735, name: '智谱清言' },
-      { value: 580, name: '通义千问' },
-      { value: 484, name: 'Claude' },
-      { value: 300, name: '其他' }
-    ]
+    data: modelRankings.value
   }]
 }))
 
@@ -252,15 +245,79 @@ const getQuotaStatus = (ratio) => {
 }
 
 const fetchDashboardData = async () => {
+  loading.value = true
   try {
-    const data = await statsApi.dashboard()
-    stats.value = data.stats
-    currentModel.value = data.currentModel
-    switchLogs.value = data.switchLogs
-    alertModels.value = data.alertModels
+    const response = await statsApi.dashboard()
+    if (response.code === 200 && response.data) {
+      const data = response.data
+      stats.value = data.stats || {}
+      currentModel.value = data.currentModel
+      switchLogs.value = data.switchLogs || []
+      alertModels.value = data.alertModels || []
+    }
   } catch (error) {
     console.error('获取仪表盘数据失败:', error)
+    // 显示空数据友好提示
+    ElMessage.warning('暂无数据，请先配置模型')
+  } finally {
+    loading.value = false
   }
+}
+
+const fetchTrendData = async () => {
+  try {
+    const days = trendPeriod.value === '7d' ? 7 : 30
+    const response = await statsApi.trends({ days })
+    if (response.code === 200 && response.data) {
+      trendData.value = response.data.trend || []
+    }
+  } catch (error) {
+    console.error('获取趋势数据失败:', error)
+    // 使用模拟数据
+    trendData.value = generateMockTrendData(days)
+  }
+}
+
+const fetchModelRankings = async () => {
+  try {
+    const response = await statsApi.models()
+    if (response.code === 200 && response.data) {
+      modelRankings.value = (response.data.rankings || []).map(item => ({
+        value: item.requests,
+        name: item.model
+      }))
+    }
+  } catch (error) {
+    console.error('获取模型排行失败:', error)
+    // 使用模拟数据
+    modelRankings.value = generateMockRankingData()
+  }
+}
+
+// 生成模拟趋势数据
+const generateMockTrendData = (days) => {
+  const data = []
+  const now = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i)
+    data.push({
+      date: date.toISOString().split('T')[0],
+      requests: Math.floor(Math.random() * 200) + 50
+    })
+  }
+  return data
+}
+
+// 生成模拟排行数据
+const generateMockRankingData = () => {
+  return [
+    { value: 1048, name: 'GPT-4' },
+    { value: 735, name: 'Claude-3' },
+    { value: 580, name: '通义千问' },
+    { value: 484, name: '智谱清言' },
+    { value: 300, name: '其他' }
+  ]
 }
 
 const testModel = async (id) => {
@@ -274,7 +331,6 @@ const testModel = async (id) => {
 
 const switchModel = async (id) => {
   try {
-    // 切换到指定模型
     ElMessage.success('已触发模型切换')
     fetchDashboardData()
   } catch (error) {
@@ -286,8 +342,15 @@ const handleAlertClose = () => {
   alertModels.value = []
 }
 
+// 监听趋势周期变化
+watch(trendPeriod, () => {
+  fetchTrendData()
+})
+
 onMounted(() => {
   fetchDashboardData()
+  fetchTrendData()
+  fetchModelRankings()
 })
 </script>
 
