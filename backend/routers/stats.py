@@ -1,7 +1,7 @@
 """
 统计 API 路由
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
