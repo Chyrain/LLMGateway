@@ -66,3 +66,10 @@ def init_default_config():
             db.commit()
     finally:
         db.close()
+
+# 导入所有模型，确保它们被注册
+from models.model_config import ModelConfig
+from models.quota_stat import QuotaStat
+from models.system_config import SystemConfig
+from models.operation_log import OperationLog
+from models.notification import Notification

@@ -17,8 +17,14 @@ from models.model_config import ModelConfig
 from models.quota_stat import QuotaStat
 from models.system_config import SystemConfig
 from models.operation_log import OperationLog
+from models.notification import Notification
 from services.gateway_core import GatewayCore
 from services.quota_monitor import QuotaMonitor
+
+# 导入路由
+from routers.auth import auth_router
+from routers.notifications import notification_router
+from routers.stats import stats_router
 
 # 启动事件
 @asynccontextmanager
@@ -40,6 +46,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 注册路由
+app.include_router(auth_router)
+app.include_router(notification_router)
+app.include_router(stats_router)
 
 # ==================== 根路径健康检查 ====================
 @app.get("/")
@@ -325,53 +336,6 @@ async def chat_completions(
             db.close()
         
         raise HTTPException(status_code=500, detail=f"请求失败: {str(e)}")
-
-# ==================== 统计接口 ====================
-@app.get("/stats/dashboard")
-async def get_dashboard_stats(db: SessionLocal = Depends(get_db)):
-    """获取仪表盘统计数据"""
-    from sqlalchemy import func
-    
-    active_models = db.query(ModelConfig).filter(
-        ModelConfig.status == 1,
-        ModelConfig.connect_status == 1
-    ).count()
-    
-    current_model = db.query(ModelConfig).filter(
-        ModelConfig.status == 1
-    ).order_by(ModelConfig.priority).first()
-    
-    today = datetime.now().date()
-    switch_count = db.query(func.count(OperationLog.id)).filter(
-        OperationLog.log_type == 2,
-        OperationLog.create_time >= today
-    ).scalar()
-    
-    quota_stats = db.query(QuotaStat).all()
-    total_quota = sum(s.total_quota for s in quota_stats)
-    
-    return {
-        "code": 200,
-        "msg": "success",
-        "data": {
-            "stats": {
-                "totalRequests": 1250,
-                "activeModels": active_models,
-                "totalQuota": round(total_quota / 1000000, 2),
-                "switchCount": switch_count
-            },
-            "currentModel": {
-                "id": current_model.id,
-                "vendor": current_model.vendor,
-                "model_name": current_model.model_name,
-                "priority": current_model.priority,
-                "remain_quota": 5000000,
-                "used_ratio": 45.5
-            } if current_model else None,
-            "switchLogs": [],
-            "alertModels": []
-        }
-    }
 
 # ==================== 工具函数 ====================
 def get_vendor_template(vendor: str) -> Dict:
