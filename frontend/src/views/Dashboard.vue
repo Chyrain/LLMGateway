@@ -155,18 +155,18 @@
       closable
       @close="handleAlertClose"
     >
-      <div class="alert-models">
-        <el-tag 
-          v-for="model in alertModels" 
-          :key="model.id" 
-          type="warning"
-          size="small"
-          class="alert-tag"
-        >
-          {{ model.vendor }} - {{ model.model_name }} ({{ model.used_ratio }}%)
-        </el-tag>
-      </div>
       <template #default>
+        <div class="alert-models">
+          <el-tag 
+            v-for="model in alertModels" 
+            :key="model.id" 
+            type="warning"
+            size="small"
+            class="alert-tag"
+          >
+            {{ model.vendor }} - {{ model.model_name }} ({{ model.used_ratio }}%)
+          </el-tag>
+        </div>
         <el-button type="primary" size="small" @click="$router.push('/quota')">立即处理</el-button>
       </template>
     </el-alert>
@@ -402,8 +402,8 @@ onMounted(() => {
   .alert-banner {
     margin-bottom: 20px;
     
-    . margin:alert-models {
-      8px 0;
+    .alert-models {
+      margin: 8px 0;
       
       .alert-tag {
         margin-right: 8px;

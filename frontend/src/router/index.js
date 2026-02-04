@@ -36,6 +36,18 @@ const routes = [
     name: 'Agent',
     component: () => import('@/views/AgentGuide.vue'),
     meta: { title: 'Agent工具适配' }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: { title: '个人中心' }
+  },
+  {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('@/views/ChangePassword.vue'),
+    meta: { title: '修改密码' }
   }
 ]
 

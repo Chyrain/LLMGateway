@@ -63,18 +63,18 @@
             
             <div class="header-right">
               <el-badge :value="alertCount" :hidden="alertCount === 0" class="alert-badge">
-                <el-icon><Bell /></el-icon>
+                <el-icon @click="toggleNotifications"><Bell /></el-icon>
               </el-badge>
-              <el-dropdown>
+              <el-dropdown @command="handleCommand">
                 <span class="user-info">
                   <el-avatar :size="32" src="https://api.dicebear.com/7.x/avataaars/svg?seed=admin" />
                   <span class="username">管理员</span>
                 </span>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item>个人中心</el-dropdown-item>
-                    <el-dropdown-item>修改密码</el-dropdown-item>
-                    <el-dropdown-item divided>退出登录</el-dropdown-item>
+                    <el-dropdown-item command="profile" icon="User">个人中心</el-dropdown-item>
+                    <el-dropdown-item command="password" icon="Lock">修改密码</el-dropdown-item>
+                    <el-dropdown-item divided command="logout" icon="SwitchButton">退出登录</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -93,14 +93,17 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
-import { Monitor, DataBoard, Setting, PieChart, Tools, Document, Connection, Bell, Fold, Expand } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Monitor, DataBoard, Setting, PieChart, Tools, Document, Connection, Bell, Fold, Expand, User, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const locale = zhCn
 const route = useRoute()
+const router = useRouter()
 const isCollapsed = ref(false)
 const alertCount = ref(2)
+const showNotifications = ref(false)
 
 const activeMenu = computed(() => route.path)
 const currentPageTitle = computed(() => {
@@ -110,10 +113,57 @@ const currentPageTitle = computed(() => {
     '/quota': '额度监控',
     '/config': '系统配置',
     '/logs': '日志管理',
-    '/agent': 'Agent工具适配'
+    '/agent': 'Agent工具适配',
+    '/profile': '个人中心',
+    '/change-password': '修改密码'
   }
   return titles[route.path] || '仪表盘'
 })
+
+// 打开通知面板
+const toggleNotifications = () => {
+  showNotifications.value = !showNotifications.value
+}
+
+// 打开个人中心
+const goToProfile = () => {
+  router.push('/profile')
+}
+
+// 打开修改密码
+const goToChangePassword = () => {
+  router.push('/change-password')
+}
+
+// 退出登录
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    ElMessage.success('已退出登录')
+    router.push('/')
+  } catch {
+    // 用户取消
+  }
+}
+
+// 处理下拉菜单命令
+const handleCommand = (command) => {
+  switch (command) {
+    case 'profile':
+      goToProfile()
+      break
+    case 'password':
+      goToChangePassword()
+      break
+    case 'logout':
+      handleLogout()
+      break
+  }
+}
 </script>
 
 <style lang="scss" scoped>
