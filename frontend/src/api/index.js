@@ -50,7 +50,15 @@ export const authApi = {
     })
   },
   logout: () => api.post('/auth/logout'),
-  profile: () => api.get('/auth/profile')
+  profile: () => api.get('/auth/profile'),
+  changePassword: (oldPassword, newPassword) => {
+    return api.post('/auth/change-password', null, {
+      headers: {
+        old_password: oldPassword,
+        new_password: newPassword
+      }
+    })
+  }
 }
 
 // 消息通知相关

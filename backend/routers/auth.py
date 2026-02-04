@@ -26,6 +26,21 @@ class TokenResponse(BaseModel):
 class UserInfo(BaseModel):
     username: str
     role: str = "admin"
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    createdAt: Optional[str] = None
+
+# 用户数据存储（生产环境应使用数据库）
+users = {
+    "admin": {
+        "username": "admin",
+        "password": "admin123",
+        "role": "admin",
+        "email": "admin@example.com",
+        "phone": "13800138000",
+        "createdAt": "2024-01-01 00:00:00"
+    }
+}
 
 @auth_router.post("/api/auth/login", response_model=TokenResponse)
 async def login(
@@ -36,7 +51,7 @@ async def login(
     用户登录
     - 默认管理员: admin / admin123
     """
-    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+    if username not in users or users[username]["password"] != password:
         raise HTTPException(
             status_code=401,
             detail="用户名或密码错误"
@@ -68,12 +83,14 @@ async def logout(
     
     return {"code": 200, "msg": "登出成功"}
 
-@auth_router.get("/api/auth/profile", response_model=UserInfo)
-async def get_profile(
+@auth_router.post("/api/auth/change-password")
+async def change_password(
+    old_password: str = Header(...),
+    new_password: str = Header(...),
     authorization: str = Header(...)
 ):
     """
-    获取当前用户信息
+    修改密码
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="未授权")
@@ -82,4 +99,13 @@ async def get_profile(
     if token_key not in tokens:
         raise HTTPException(status_code=401, detail="Token无效或已过期")
     
-    return UserInfo(username=tokens[token_key]["username"])
+    username = tokens[token_key]["username"]
+    
+    # 验证旧密码
+    if users[username]["password"] != old_password:
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    
+    # 更新密码
+    users[username]["password"] = new_password
+    
+    return {"code": 200, "msg": "密码修改成功"}

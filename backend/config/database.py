@@ -64,6 +64,18 @@ def init_default_config():
             for config in default_configs:
                 db.add(SystemConfig(**config))
             db.commit()
+            
+        # 初始化默认管理员通知
+        existing_notif = db.query(Notification).first()
+        if not existing_notif:
+            welcome_notif = Notification(
+                title="欢迎使用灵模网关",
+                message="系统已成功部署，您可以开始配置模型了。点击模型配置添加您的第一个模型。",
+                type="info",
+                is_read=False
+            )
+            db.add(welcome_notif)
+            db.commit()
     finally:
         db.close()
 
