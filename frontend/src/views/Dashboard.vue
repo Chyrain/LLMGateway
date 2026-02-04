@@ -247,9 +247,9 @@ const getQuotaStatus = (ratio) => {
 const fetchDashboardData = async () => {
   loading.value = true
   try {
-    const response = await statsApi.dashboard()
-    if (response.code === 200 && response.data) {
-      const data = response.data
+    const data = await statsApi.dashboard()
+    // statsApi 返回的已经是 data 对象
+    if (data) {
       stats.value = data.stats || {}
       currentModel.value = data.currentModel
       switchLogs.value = data.switchLogs || []
@@ -268,8 +268,8 @@ const fetchTrendData = async () => {
   try {
     const days = trendPeriod.value === '7d' ? 7 : 30
     const response = await statsApi.trends({ days })
-    if (response.code === 200 && response.data) {
-      trendData.value = response.data.trend || []
+    if (response) {
+      trendData.value = response.trend || []
     }
   } catch (error) {
     console.error('获取趋势数据失败:', error)
@@ -281,8 +281,8 @@ const fetchTrendData = async () => {
 const fetchModelRankings = async () => {
   try {
     const response = await statsApi.models()
-    if (response.code === 200 && response.data) {
-      modelRankings.value = (response.data.rankings || []).map(item => ({
+    if (response && response.rankings) {
+      modelRankings.value = response.rankings.map(item => ({
         value: item.requests,
         name: item.model
       }))
