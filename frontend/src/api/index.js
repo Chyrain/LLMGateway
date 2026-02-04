@@ -43,7 +43,10 @@ export const handleResponse = (res) => {
 export const authApi = {
   login: (username, password) => {
     return api.post('/auth/login', null, {
-      auth: { username, password }
+      headers: {
+        username: username,
+        password: password
+      }
     })
   },
   logout: () => api.post('/auth/logout'),
