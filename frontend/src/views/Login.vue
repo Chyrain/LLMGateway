@@ -90,11 +90,12 @@ const handleLogin = async () => {
     try {
       const response = await authApi.login(loginForm.username, loginForm.password)
       
-      if (response.code === 200 || response.access_token) {
+      // 响应格式: { code, msg, data: { access_token, username } }
+      if (response.code === 200 && response.data) {
         // 保存 token
-        const token = response.access_token || response.token
+        const token = response.data.access_token
         localStorage.setItem('token', token)
-        localStorage.setItem('username', response.username || loginForm.username)
+        localStorage.setItem('username', response.data.username || loginForm.username)
         
         // 检查是否是首次登录（没有设置过标记）
         if (!localStorage.getItem('llmgateway_visited')) {
@@ -107,7 +108,7 @@ const handleLogin = async () => {
           router.push('/')
         }
       } else {
-        ElMessage.error(response.detail || '登录失败')
+        ElMessage.error(response.msg || response.detail || '登录失败')
       }
     } catch (error) {
       console.error('登录失败:', error)

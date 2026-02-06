@@ -85,14 +85,9 @@ router.beforeEach((to, from, next) => {
     // 需要登录但没有 token，跳转到登录页
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.name === 'Login' && token) {
-    // 已登录访问登录页
-    // 检查是否是首次登录
-    if (isFirstLogin()) {
-      next({ name: 'Welcome' })
-    } else {
-      next({ name: 'Dashboard' })
-    }
-  } else if (to.name === 'Dashboard' && token && isFirstLogin()) {
+    // 已登录访问登录页，跳转到仪表盘
+    next({ name: 'Dashboard' })
+  } else if (to.name === 'Dashboard' && isFirstLogin()) {
     // 首次登录访问仪表盘，跳转到欢迎页
     next({ name: 'Welcome' })
   } else {

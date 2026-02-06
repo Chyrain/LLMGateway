@@ -25,6 +25,8 @@ from services.quota_monitor import QuotaMonitor
 from routers.auth import auth_router
 from routers.notifications import notification_router
 from routers.stats import stats_router
+from routers.logs import logs_router
+from routers.config import config_router
 
 # 启动事件
 @asynccontextmanager
@@ -51,6 +53,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(notification_router)
 app.include_router(stats_router)
+app.include_router(logs_router)
+app.include_router(config_router)
 
 # ==================== 根路径健康检查 ====================
 @app.get("/")
@@ -230,6 +234,37 @@ async def sync_quota(model_id: int, db: SessionLocal = Depends(get_db)):
         return {"code": 200, "msg": "额度同步成功"}
     else:
         raise HTTPException(status_code=400, detail="额度同步失败，该厂商不支持自动同步")
+
+@app.get("/api/quota/history")
+async def get_quota_history(
+    model_id: Optional[int] = None,
+    days: int = 30,
+    db: SessionLocal = Depends(get_db)
+):
+    """
+    获取额度历史记录
+    """
+    # 返回模拟历史数据（生产环境应使用独立的历史记录表）
+    from datetime import datetime, timedelta
+    
+    history = []
+    end_date = datetime.now()
+    
+    for i in range(days):
+        date = end_date - timedelta(days=days - 1 - i)
+        history.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "total_quota": 1000000,
+            "used_quota": i * 10000 + 50000,
+            "remain_quota": 1000000 - i * 10000 - 50000,
+            "usage_rate": round((i * 10000 + 50000) / 1000000 * 100, 2)
+        })
+    
+    return {
+        "code": 200,
+        "msg": "success",
+        "data": history
+    }
 
 # ==================== 网关核心接口 (OpenAI兼容) ====================
 class ChatMessage(BaseModel):

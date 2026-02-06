@@ -257,8 +257,10 @@ const fetchData = async () => {
     }
     
     const res = await logApi.list(params)
+    
+    // 后端返回: { code, msg, data: [...] }
     tableData.value = res.data || []
-    pagination.total = res.total || 0
+    pagination.total = tableData.value.length
   } catch (error) {
     ElMessage.error('获取日志失败')
   } finally {

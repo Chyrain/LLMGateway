@@ -51,7 +51,7 @@ async def create_notification(
         "data": notification.to_dict()
     }
 
-@notification_router.get("/api/notifications", response_model=List[NotificationResponse])
+@notification_router.get("/api/notifications")
 async def get_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -69,12 +69,15 @@ async def get_notifications(
     if notification_type:
         query = query.filter(Notification.type == notification_type)
     
-    total = query.count()
     notifications = query.order_by(
         desc(Notification.created_at)
     ).offset((page - 1) * page_size).limit(page_size).all()
     
-    return notifications
+    return {
+        "code": 200,
+        "msg": "success",
+        "data": [n.to_dict() for n in notifications]
+    }
 
 @notification_router.put("/api/notifications/{notification_id}/read")
 async def mark_as_read(

@@ -284,12 +284,11 @@ const fetchData = async () => {
   try {
     const res = await modelApi.list({
       vendor: filters.vendor,
-      status: filters.status,
-      page: pagination.page,
-      size: pagination.size
+      status: filters.status
     })
+    // 后端返回: { code, msg, data: [...] }
     tableData.value = res.data || []
-    pagination.total = res.total || 0
+    pagination.total = tableData.value.length
   } catch (error) {
     ElMessage.error('获取模型列表失败')
   } finally {

@@ -42,7 +42,7 @@ users = {
     }
 }
 
-@auth_router.post("/api/auth/login", response_model=TokenResponse)
+@auth_router.post("/api/auth/login")
 async def login(
     username: str = Header(...),
     password: str = Header(...)
@@ -64,10 +64,15 @@ async def login(
         "created_at": datetime.now()
     }
     
-    return TokenResponse(
-        access_token=token,
-        username=username
-    )
+    # 返回统一格式
+    return {
+        "code": 200,
+        "msg": "登录成功",
+        "data": {
+            "access_token": token,
+            "username": username
+        }
+    }
 
 @auth_router.post("/api/auth/logout")
 async def logout(

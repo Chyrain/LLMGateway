@@ -364,6 +364,10 @@ onMounted(() => {
   fetchDashboardData()
   fetchTrendData()
   fetchModelRankings()
+  
+  // 确保初始化为空数组，避免 undefined
+  modelRankings.value = []
+  trendData.value = []
 })
 </script>
 

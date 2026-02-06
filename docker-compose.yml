@@ -43,7 +43,7 @@ services:
     depends_on:
       - backend
 
-  # 前端管理平台
+  # Vue 前端管理平台 (默认端口 80)
   frontend:
     build: ./frontend
     container_name: llmgateway-frontend
@@ -55,9 +55,26 @@ services:
     depends_on:
       - backend
 
+  # React 前端管理平台 (端口 88)
+  frontend-react:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+      args:
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%s)}
+    container_name: llmgateway-frontend-react
+    ports:
+      - "88:80"
+    volumes:
+      - frontend_react_dist:/usr/share/nginx/html
+    restart: unless-stopped
+    depends_on:
+      - backend
+
 volumes:
   backend_data:
   frontend_dist:
+  frontend_react_dist:
 
 networks:
   default:
