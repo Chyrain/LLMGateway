@@ -182,6 +182,43 @@ async def disable_model(model_id: int, db: SessionLocal = Depends(get_db)):
     
     return {"code": 200, "msg": "模型已禁用"}
 
+class UpdateModelRequest(BaseModel):
+    vendor: Optional[str] = None
+    model_name: Optional[str] = None
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    api_path: Optional[str] = None
+    params: Optional[Dict[str, Any]] = None
+    priority: Optional[int] = None
+
+@app.put("/api/models/{model_id}")
+async def update_model(model_id: int, request: UpdateModelRequest, db: SessionLocal = Depends(get_db)):
+    """更新模型配置"""
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    
+    # 更新字段（如果提供了新值）
+    if request.vendor is not None:
+        model.vendor = request.vendor
+    if request.model_name is not None:
+        model.model_name = request.model_name
+    if request.api_base is not None:
+        model.api_base = request.api_base
+    if request.api_key is not None:
+        model.api_key = encrypt_api_key(request.api_key)
+    if request.api_path is not None:
+        model.api_path = request.api_path
+    if request.params is not None:
+        model.params = request.params
+    if request.priority is not None:
+        model.priority = request.priority
+    
+    db.commit()
+    
+    return {"code": 200, "msg": "success", "data": {"id": model.id}}
+
 @app.delete("/api/models/{model_id}")
 async def delete_model(model_id: int, db: SessionLocal = Depends(get_db)):
     """删除模型"""
