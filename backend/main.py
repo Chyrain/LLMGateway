@@ -75,7 +75,7 @@ class AddModelRequest(BaseModel):
     params: Optional[Dict[str, Any]] = {}
     priority: Optional[int] = 100
 
-@app.get("/api/model/list")
+@app.get("/api/models")
 async def list_models(
     vendor: Optional[str] = None, 
     status: Optional[int] = None,
@@ -109,7 +109,7 @@ async def list_models(
         } for m in models]
     }
 
-@app.post("/api/model/add")
+@app.post("/api/models")
 async def add_model(request: AddModelRequest, db: SessionLocal = Depends(get_db)):
     """新增模型配置"""
     exist = db.query(ModelConfig).filter(
@@ -137,7 +137,7 @@ async def add_model(request: AddModelRequest, db: SessionLocal = Depends(get_db)
     
     return {"code": 200, "msg": "success", "data": {"id": model.id}}
 
-@app.post("/api/model/{model_id}/test")
+@app.post("/api/models/{model_id}/test")
 async def test_model_connectivity(model_id: int, db: SessionLocal = Depends(get_db)):
     """测试模型连通性"""
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
@@ -156,7 +156,7 @@ async def test_model_connectivity(model_id: int, db: SessionLocal = Depends(get_
     else:
         raise HTTPException(status_code=400, detail="连通测试失败")
 
-@app.post("/api/model/{model_id}/enable")
+@app.post("/api/models/{model_id}/enable")
 async def enable_model(model_id: int, db: SessionLocal = Depends(get_db)):
     """启用模型"""
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
@@ -169,7 +169,7 @@ async def enable_model(model_id: int, db: SessionLocal = Depends(get_db)):
     
     return {"code": 200, "msg": "模型已启用"}
 
-@app.post("/api/model/{model_id}/disable")
+@app.post("/api/models/{model_id}/disable")
 async def disable_model(model_id: int, db: SessionLocal = Depends(get_db)):
     """禁用模型"""
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
@@ -182,7 +182,7 @@ async def disable_model(model_id: int, db: SessionLocal = Depends(get_db)):
     
     return {"code": 200, "msg": "模型已禁用"}
 
-@app.delete("/api/model/{model_id}")
+@app.delete("/api/models/{model_id}")
 async def delete_model(model_id: int, db: SessionLocal = Depends(get_db)):
     """删除模型"""
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
