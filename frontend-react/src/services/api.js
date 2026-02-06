@@ -56,13 +56,13 @@ export const notificationApi = {
 
 // 模型配置相关
 export const modelApi = {
-  list: () => api.get('/model/list'),
-  add: (data) => api.post('/model/add', data),
-  update: (id, data) => api.put(`/model/${id}`, data),
-  delete: (id) => api.delete(`/model/${id}`),
-  test: (id) => api.post(`/model/${id}/test`),
-  enable: (id) => api.post(`/model/${id}/enable`),
-  disable: (id) => api.post(`/model/${id}/disable`)
+  list: () => api.get('/models'),
+  add: (data) => api.post('/models', data),
+  update: (id, data) => api.put(`/models/${id}`, data),
+  delete: (id) => api.delete(`/models/${id}`),
+  test: (id) => api.post(`/models/${id}/test`),
+  enable: (id) => api.post(`/models/${id}/enable`),
+  disable: (id) => api.post(`/models/${id}/disable`)
 };
 
 // 额度统计相关
