@@ -11,7 +11,8 @@ def get_encryption_key():
     if key:
         # 如果是环境变量中的密钥，需要确保是有效的Fernet密钥
         try:
-            return base64.urlsafe_b64decode(key)
+            # Fernet 接受 base64 编码的字符串
+            return key.encode()
         except Exception:
             pass
     

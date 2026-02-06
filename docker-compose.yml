@@ -10,7 +10,7 @@ services:
     environment:
       - DB_TYPE=sqlite
       - DB_PATH=/data/llmgateway.db
-      - ENCRYPT_KEY=${ENCRYPT_KEY:-your-256-bit-encryption-key-here}
+      - ENCRYPT_KEY=${ENCRYPT_KEY:-GWx00k3ke0rjpStfsl5tD67tAeYp-FXQsgkG80B7c9k=}
       - GATEWAY_PORT=8080
       - LOG_LEVEL=INFO
       - SWITCH_THRESHOLD=99
@@ -34,7 +34,7 @@ services:
     environment:
       - DB_TYPE=sqlite
       - DB_PATH=/data/llmgateway.db
-      - ENCRYPT_KEY=${ENCRYPT_KEY:-your-256-bit-encryption-key-here}
+      - ENCRYPT_KEY=${ENCRYPT_KEY:-GWx00k3ke0rjpStfsl5tD67tAeYp-FXQsgkG80B7c9k=}
       - API_PORT=8000
       - GATEWAY_MODE=true
     volumes:
