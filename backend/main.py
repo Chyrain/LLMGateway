@@ -492,6 +492,19 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
 
         # 转换为 OpenAI 格式
         models_data = []
+
+        # 添加自动切换选项
+        models_data.append(
+            {
+                "id": "auto",
+                "object": "model",
+                "created": 0,
+                "owned_by": "gateway",
+                "description": "自动根据优先级和额度余量切换模型",
+                "capabilities": {"auto_switch": True, "priority_based": True},
+            }
+        )
+
         for model in models:
             models_data.append(
                 {
@@ -524,8 +537,9 @@ async def chat_completions(
     try:
         requested_model = request.model
 
-        # 如果没有指定模型或模型名称为空，使用优先级最高的可用模型
-        if not requested_model:
+        # 支持 "auto" 模式或 model 为空
+        if requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model:
+            # 自动模式：根据优先级和额度选择最优模型
             current_model = (
                 db.query(ModelConfig)
                 .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
@@ -534,7 +548,7 @@ async def chat_completions(
             )
             if current_model:
                 print(
-                    f"[INFO] 未指定模型，自动使用优先级最高的模型: {current_model.vendor} - {current_model.model_name}"
+                    f"[AUTO] 自动模式，使用优先级最高的模型: {current_model.vendor} - {current_model.model_name}"
                 )
         else:
             # 尝试根据请求的 model 名称查找
@@ -548,7 +562,7 @@ async def chat_completions(
                 .first()
             )
 
-            # 如果没找到指定模型，使用优先级最高的可用模型
+            # 如果没找到指定模型，自动切换到优先级最高的可用模型
             if not current_model:
                 current_model = (
                     db.query(ModelConfig)
