@@ -148,34 +148,38 @@ const QuotaMonitor = () => {
 
   const usageChartOption = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['请求次数'] },
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
     xAxis: {
       type: 'category',
+      boundaryGap: false,
       data: (usageTrend || []).map(item => item.date)
     },
-    yAxis: { type: 'value' },
+    yAxis: { type: 'value', minInterval: 1 },
     series: [
       {
         name: '请求次数',
         type: 'line',
-        smooth: true,
         data: (usageTrend || []).map(item => item.requests),
         itemStyle: { color: '#1890ff' },
-        areaStyle: { color: 'rgba(24, 144, 255, 0.1)' }
+        areaStyle: { color: 'rgba(24, 144, 255, 0.2)' }
       }
     ]
   };
 
   const rankingChartOption = {
-    tooltip: { trigger: 'item' },
-    legend: { orient: 'vertical', left: 'left' },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     series: [
       {
         name: '模型使用',
         type: 'pie',
+        radius: ['45%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 14 } },
         data: (modelRanking || []).slice(0, 5).map(item => ({
-          value: item.requests,
-          name: item.model
+          value: item.requests || 0,
+          name: item.model || '未知模型'
         }))
       }
     ]
