@@ -600,6 +600,14 @@ async def chat_completions(
                         model.vendor, model.api_base, model.api_key, request_data
                     )
 
+                # 验证响应是否有效（必须有 choices 且有内容）
+                choices = response.get("choices", [])
+                if (
+                    not choices
+                    or not choices[0].get("message", {}).get("content", "").strip()
+                ):
+                    raise ValueError(f"模型返回空响应")
+
                 # 成功：记录日志并返回
                 successful_model = model
                 log = OperationLog(
