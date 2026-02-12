@@ -712,8 +712,13 @@ class GatewayCore:
     async def _fetch_ollama_models(cls, api_base: str) -> Dict[str, Any]:
         """获取 Ollama 本地模型列表"""
         try:
-            api_base_clean = api_base.rstrip("/")
-            url = f"{api_base_clean}/api/tags"
+            # Ollama 的模型列表 API 是 /api/tags
+            # 需要从 API Base 中提取主机地址，忽略 /v1 等路径
+            from urllib.parse import urlparse
+
+            parsed = urlparse(api_base)
+            host = parsed.netloc or parsed.path.split("/")[0]
+            url = f"http://{host}/api/tags"
 
             async with httpx.AsyncClient(
                 timeout=10.0, follow_redirects=False
