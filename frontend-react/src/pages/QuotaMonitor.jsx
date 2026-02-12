@@ -52,7 +52,8 @@ const QuotaMonitor = () => {
   const fetchUsageTrend = async () => {
     try {
       const [start, end] = dateRange;
-      const days = end.diff(start, 'day') + 1;
+      let days = end.diff(start, 'day') + 1;
+      if (days > 30) days = 30; // 后端限制最大 30 天
       const response = await statsApi.trends({ days });
       if (response.code === 200) {
         setUsageTrend(response.data?.trend || []);
@@ -295,6 +296,11 @@ const QuotaMonitor = () => {
                 <RangePicker
                   value={dateRange}
                   onChange={(dates) => dates && setDateRange(dates)}
+                  disabledDate={(current) => {
+                    if (!current) return false;
+                    const diff = dayjs().diff(current, 'day');
+                    return diff > 30 || diff < 0;
+                  }}
                 />
                 <Button icon={<ReloadOutlined />} onClick={() => fetchUsageTrend()}>刷新</Button>
               </Space>
