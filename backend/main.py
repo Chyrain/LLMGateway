@@ -536,9 +536,13 @@ async def chat_completions(
 
     gateway_api_key = authorization.replace("Bearer ", "")
     requested_model = request.model
+    print(
+        f"[DEBUG] requested_model: '{requested_model}', type: {type(requested_model)}"
+    )
     is_auto_mode = (
         requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model
     )
+    print(f"[DEBUG] is_auto_mode: {is_auto_mode}")
 
     # 获取所有可用的模型（按优先级排序）
     db = SessionLocal()
@@ -553,21 +557,29 @@ async def chat_completions(
         if not available_models:
             raise HTTPException(status_code=503, detail="无可用模型，请先配置模型")
 
-        # 如果是 auto 模式，尝试所有可用模型
-        # 如果指定了模型，优先试指定的模型，然后尝试其他可用模型
+        # 决定要尝试的模型列表
         if is_auto_mode:
+            # auto 模式：尝试所有可用模型
             models_to_try = available_models
         else:
-            # 找到指定模型的位置，将其移到前面
+            # 指定具体模型：只试指定的模型
+            print(f"[DEBUG] Looking for model: '{requested_model}'")
+            print(
+                f"[DEBUG] Available models: {[m.model_name for m in available_models]}"
+            )
             target_model = next(
                 (m for m in available_models if m.model_name == requested_model), None
             )
+            print(f"[DEBUG] target_model found: {target_model}")
             if target_model:
-                models_to_try = [target_model] + [
-                    m for m in available_models if m.model_name != requested_model
-                ]
+                models_to_try = [target_model]
             else:
-                models_to_try = available_models
+                # 指定模型不存在或不可用
+                print(f"[DEBUG] Model not found, raising 404")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"模型 '{requested_model}' 不存在或不可用",
+                )
 
         last_error = None
         successful_model = None
@@ -575,7 +587,7 @@ async def chat_completions(
 
         for model in models_to_try:
             try:
-                print(f"[INFO] 尝试模型: {model.vendor} - {model.model_name}")
+                print(f"[INFO] 使用模型: {model.vendor} - {model.model_name}")
 
                 request_data = {
                     "model": model.model_name,
@@ -626,7 +638,7 @@ async def chat_completions(
                 db.add(log)
                 db.commit()
 
-                print(f"[SUCCESS] 使用模型: {model.vendor} - {model.model_name}")
+                print(f"[SUCCESS] 模型响应成功: {model.vendor} - {model.model_name}")
                 return response
 
             except Exception as e:
@@ -652,17 +664,19 @@ async def chat_completions(
                 db.add(log)
                 db.commit()
 
-                # 如果不是 auto 模式，且找到了指定模型，失败后尝试其他模型
-                # 如果是 auto 模式，继续尝试下一个
+                # 如果是指定模型模式，失败直接抛出错误
+                if not is_auto_mode:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"模型 '{requested_model}' 请求失败: {error_msg}",
+                    )
+
+                # auto 模式继续尝试下一个
                 continue
 
         # 所有模型都失败了
-        error_detail = (
-            last_error.detail if hasattr(last_error, "detail") else str(last_error)
-        )
-        raise HTTPException(
-            status_code=500, detail=f"所有可用模型均失败: {error_detail}"
-        )
+        error_detail = str(last_error) if last_error else "所有可用模型均失败"
+        raise HTTPException(status_code=500, detail=error_detail)
 
     finally:
         db.close()

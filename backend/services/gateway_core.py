@@ -165,7 +165,7 @@ class GatewayCore:
         },
         "minimax": {
             "name": "MiniMax",
-            "api_base": "https://api.minimax.io/v1/text",
+            "api_base": "https://api.minimaxi.com/v1/text",
             "api_path": "/chatcompletion_v2",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
@@ -927,7 +927,7 @@ class GatewayCore:
         else:
             url = f"{api_base_clean}{api_path}"
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=False) as client:
             response = await client.post(url, json=mapped_request, headers=headers)
 
             if response.status_code != 200:
@@ -962,7 +962,7 @@ class GatewayCore:
         else:
             url = f"{api_base_clean}{api_path}"
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=300.0, follow_redirects=False) as client:
             async with client.stream(
                 "POST", url, json=mapped_request, headers=headers
             ) as response:
@@ -1087,9 +1087,10 @@ class GatewayCore:
             ),
         }
 
-        # 处理choices
-        if "choices" in response_data:
-            for choice in response_data["choices"]:
+        # 处理choices（兼容 null 或不存在的情况）
+        choices_data = response_data.get("choices")
+        if choices_data:
+            for choice in choices_data:
                 message = choice.get("message", {})
                 standardized["choices"].append(
                     {
