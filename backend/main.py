@@ -10,6 +10,7 @@ import httpx
 import asyncio
 from datetime import datetime
 import os
+from sqlalchemy import text
 
 from config.database import get_db, init_db, SessionLocal
 
@@ -73,6 +74,29 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+@app.on_event("startup")
+async def startup_event():
+    """数据库迁移：添加新列"""
+    db = SessionLocal()
+    try:
+        # 检查 api_spec 列是否存在
+        result = db.execute(text("PRAGMA table_info(model_config)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "api_spec" not in columns:
+            db.execute(
+                text(
+                    "ALTER TABLE model_config ADD COLUMN api_spec VARCHAR(50) DEFAULT 'openai'"
+                )
+            )
+            db.commit()
+            print("[INFO] 已添加 api_spec 列到 model_config 表")
+    except Exception as e:
+        print(f"[WARN] 数据库迁移检查: {e}")
+    finally:
+        db.close()
+
+
 # ==================== 模型配置接口 ====================
 class AddModelRequest(BaseModel):
     vendor: str
@@ -80,6 +104,7 @@ class AddModelRequest(BaseModel):
     api_key: str
     api_base: Optional[str] = None
     api_path: Optional[str] = "/v1/chat/completions"
+    api_spec: Optional[str] = "openai"
     params: Optional[Dict[str, Any]] = {}
     priority: Optional[int] = 100
 
@@ -101,6 +126,7 @@ async def get_model_detail(model_id: int, db: SessionLocal = Depends(get_db)):
             "model_name": model.model_name,
             "api_base": model.api_base,
             "api_path": model.api_path,
+            "api_spec": model.api_spec,
             "api_key": model.api_key,
             "priority": model.priority,
             "status": model.status,
@@ -142,6 +168,7 @@ async def list_models(
                 "model_name": m.model_name,
                 "api_base": m.api_base,
                 "api_path": m.api_path,
+                "api_spec": m.api_spec,
                 "api_key": m.api_key or "",
                 "priority": m.priority,
                 "status": m.status,
@@ -185,6 +212,7 @@ async def add_model(request: AddModelRequest, db: SessionLocal = Depends(get_db)
         api_base=request.api_base
         or get_vendor_template(request.vendor).get("api_base"),
         api_path=request.api_path,
+        api_spec=request.api_spec or "openai",
         params=request.params or {},
         priority=request.priority,
     )
@@ -291,6 +319,7 @@ class UpdateModelRequest(BaseModel):
     api_base: Optional[str] = None
     api_key: Optional[str] = None
     api_path: Optional[str] = None
+    api_spec: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
     priority: Optional[int] = None
 
@@ -319,6 +348,8 @@ async def update_model(
         model.api_key = request.api_key
     if request.api_path is not None:
         model.api_path = request.api_path
+    if request.api_spec is not None:
+        model.api_spec = request.api_spec
     if request.params is not None:
         model.params = request.params
     if request.priority is not None:

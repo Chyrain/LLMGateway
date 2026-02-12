@@ -713,12 +713,24 @@ class GatewayCore:
         """获取 Ollama 本地模型列表"""
         try:
             # Ollama 的模型列表 API 是 /api/tags
-            # 需要从 API Base 中提取主机地址，忽略 /v1 等路径
+            # 需要从 API Base 中提取主机地址
             from urllib.parse import urlparse
 
+            # 确保 URL 有协议头
+            if not api_base.startswith(("http://", "https://")):
+                api_base = "http://" + api_base
+
             parsed = urlparse(api_base)
-            host = parsed.netloc or parsed.path.split("/")[0]
+            host = parsed.netloc
+
+            # 如果 netloc 为空，可能是没有协议头的情况
+            if not host:
+                host = parsed.path.split("/")[0]
+
+            # 构建 Ollama tags API URL
             url = f"http://{host}/api/tags"
+
+            print(f"[DEBUG] 获取 Ollama 模型列表: {url}")
 
             async with httpx.AsyncClient(
                 timeout=10.0, follow_redirects=False
@@ -734,7 +746,7 @@ class GatewayCore:
                             {
                                 "id": model_name,
                                 "name": model_name,
-                                "description": f"Size: {model.get('size', 'unknown')}, Modified: {model.get('modified_at', 'unknown')}",
+                                "description": f"Size: {model.get('size', 'unknown')}",
                             }
                         )
 
