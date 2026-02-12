@@ -998,6 +998,17 @@ class GatewayCore:
         if vendor == "gemini":
             headers["Content-Type"] = "application/json"
 
+        # MiniMax 特殊处理：如果 API Key 包含冒号，尝试不同的认证格式
+        if vendor == "minimax":
+            # MiniMax 可能需要 Key 和 Secret 组合
+            if ":" in api_key:
+                # 格式: api_key:api_secret，进行 Base64 编码
+                import base64
+
+                auth_value = base64.b64encode(api_key.encode()).decode()
+                headers["Authorization"] = f"Basic {auth_value}"
+            # 否则保持原样
+
         return headers
 
     @classmethod
