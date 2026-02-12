@@ -351,46 +351,19 @@ class GatewayCore:
                 timeout=10.0, follow_redirects=False
             ) as client:
                 response = await client.post(url, json=test_request, headers=headers)
+                print(f"[DEBUG] Test response status: {response.status_code}")
                 if response.status_code == 200:
                     return True
-                elif 400 <= response.status_code < 500:
-                    return False
-                else:
-                    return True
-
-        except Exception as e:
-            print(f"连通性测试失败: {e}")
-            return False
-
-            config = cls.VENDOR_CONFIGS.get(vendor, {})
-            headers = cls._build_headers(vendor, api_key, config)
-
-            test_request = cls._build_test_request(vendor, model_name)
-            api_path = config.get("api_path", "/v1/chat/completions")
-            api_base_clean = api_base.rstrip("/")
-            if api_base_clean.endswith("/v1"):
-                api_base_clean = api_base_clean[:-3]
-            url = f"{api_base_clean}{api_path}"
-            print(f"[DEBUG] Test request URL: {url}")
-            print(f"[DEBUG] Test request body: {test_request}")
-            print(f"[DEBUG] Headers: {headers}")
-
-            async with httpx.AsyncClient(
-                timeout=10.0, follow_redirects=False
-            ) as client:
-                response = await client.post(url, json=test_request, headers=headers)
-                print(f"[DEBUG] Response status: {response.status_code}")
-                print(
-                    f"[DEBUG] Response body: {response.text[:500] if response.text else 'empty'}"
-                )
-                if response.status_code == 200:
+                elif response.status_code == 429:
+                    # 429 表示 API 可达但额度限制（如余额不足），视为连通
+                    print(f"[DEBUG] API 返回 429，视为连通（可能是余额不足）")
                     return True
                 elif 400 <= response.status_code < 500:
-                    return False
-                else:
                     print(
-                        f"[DEBUG] Server responded with status {response.status_code}, treating as connected"
+                        f"[DEBUG] Client error {response.status_code}: {response.text[:200]}"
                     )
+                    return False
+                else:
                     return True
 
         except Exception as e:
