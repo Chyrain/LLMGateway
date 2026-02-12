@@ -8,6 +8,7 @@ const SystemConfig = () => {
   const [alertForm] = Form.useForm();
   const [commonForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [thresholdValue, setThresholdValue] = useState(80);
 
   // 默认配置值
   const defaultConfig = {
@@ -39,9 +40,11 @@ const SystemConfig = () => {
         });
         
         // 设置告警配置
+        const alertThreshold = parseInt(data.alert_threshold) || defaultConfig.alert_threshold;
         alertForm.setFieldsValue({
-          threshold: parseInt(data.alert_threshold) || defaultConfig.alert_threshold
+          threshold: alertThreshold
         });
+        setThresholdValue(alertThreshold);
         
         // 设置通用配置
         commonForm.setFieldsValue({
@@ -78,10 +81,9 @@ const SystemConfig = () => {
 
   const handleSaveAlert = async () => {
     try {
-      const values = await alertForm.validateFields();
-      console.log('保存告警配置:', values);
+      console.log('保存告警配置，当前值:', thresholdValue);
       
-      await configApi.set({ key: 'alert_threshold', value: String(values.threshold) });
+      await configApi.set({ key: 'alert_threshold', value: String(thresholdValue) });
       message.success('告警配置已保存');
       loadConfigs();
     } catch (error) {
@@ -142,11 +144,16 @@ const SystemConfig = () => {
             </Button>
           }>
             <Form form={alertForm} layout="vertical">
-              <Form.Item name="threshold" label="额度告警阈值 (%)">
+              <Form.Item label="额度告警阈值 (%)">
                 <InputNumber 
                   min={0} 
                   max={100} 
-                  style={{ width: '100%' }} 
+                  style={{ width: '100%' }}
+                  value={thresholdValue}
+                  onChange={(value) => {
+                    console.log('阈值变化:', value);
+                    setThresholdValue(value || 0);
+                  }}
                 />
                 <div className="form-tip">当模型使用额度达到此百分比时触发告警</div>
               </Form.Item>
