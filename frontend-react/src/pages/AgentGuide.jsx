@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Descriptions, Tag, Button, Input, Space, message, Switch, Divider, Alert, Steps, List, Tabs } from 'antd';
-import { CopyOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Tag, Button, Input, Space, message, Switch, Divider, Alert, Steps, List, Tabs, Modal, Spin } from 'antd';
+import { CopyOutlined, CheckCircleOutlined, PlayCircleOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { modelApi, configApi } from '../services/api';
 
 const AgentGuide = () => {
   const [modelList, setModelList] = useState([]);
   const [gatewayApiKey, setGatewayApiKey] = useState('');
   const [copied, setCopied] = useState(false);
+  const [testModalVisible, setTestModalVisible] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(null);
+  const [testMessage, setTestMessage] = useState('');
+  const [testResponse, setTestResponse] = useState('');
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     fetchModels();
@@ -39,6 +44,51 @@ const AgentGuide = () => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleTestModel = (model) => {
+    setSelectedModel(model);
+    setTestModalVisible(true);
+    setTestMessage('');
+    setTestResponse('');
+  };
+
+  const handleSendTestMessage = async () => {
+    if (!testMessage.trim()) {
+      message.warning('请输入测试消息');
+      return;
+    }
+
+    setTesting(true);
+    setTestResponse('');
+
+    try {
+      const response = await fetch('http://localhost:8080/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${gatewayApiKey || 'gtw_admin123'}`
+        },
+        body: JSON.stringify({
+          model: selectedModel.model_name,
+          messages: [{ role: 'user', content: testMessage }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `请求失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '无响应内容';
+      setTestResponse(content);
+    } catch (error) {
+      console.error('测试失败:', error);
+      setTestResponse(`请求失败: ${error.message}`);
+    } finally {
+      setTesting(false);
+    }
   };
 
   const curlExample = `curl -X POST "http://localhost:8080/v1/chat/completions" \\
@@ -140,12 +190,43 @@ print(response.content)`;
       <Card title="1. 获取网关 API Key" style={{ marginBottom: 20 }}>
         <Descriptions>
           <Descriptions.Item label="API Key">
-            <Input.Password
-              value={gatewayApiKey}
-              placeholder="请在系统配置中设置"
-              style={{ width: 400 }}
-              readOnly
-            />
+            {gatewayApiKey ? (
+              <Space>
+                <Input.Password
+                  value={gatewayApiKey}
+                  style={{ width: 400 }}
+                  readOnly
+                />
+                <Button 
+                  type="primary" 
+                  icon={<CopyOutlined />}
+                  onClick={() => handleCopy(gatewayApiKey)}
+                >
+                  复制
+                </Button>
+              </Space>
+            ) : (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Alert
+                  message="API Key 未设置"
+                  description="请前往「系统配置」-「网关配置」中设置 API Key"
+                  type="warning"
+                  showIcon
+                  action={
+                    <Button 
+                      type="primary" 
+                      size="small"
+                      onClick={() => window.location.href = '/#/system-config'}
+                    >
+                      去设置
+                    </Button>
+                  }
+                />
+                <div style={{ color: '#999', fontSize: 12 }}>
+                  默认网关 API Key: gtw_admin123
+                </div>
+              </Space>
+            )}
           </Descriptions.Item>
         </Descriptions>
       </Card>
@@ -177,19 +258,111 @@ print(response.content)`;
         />
       </Card>
 
-      <Card title="3. 已配置模型">
+      <Card title="3. 已配置模型" style={{ marginBottom: 20 }}>
         <List
           grid={{ gutter: 16, column: 3 }}
           dataSource={modelList}
           renderItem={(item) => (
             <List.Item>
-              <Tag color="blue">{item.vendor}</Tag>
-              <Tag>{item.model_name}</Tag>
+              <Card 
+                size="small" 
+                hoverable 
+                onClick={() => handleTestModel(item)}
+                style={{ cursor: 'pointer', width: '100%' }}
+                bodyStyle={{ padding: '12px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Space>
+                    <Tag color="blue">{item.vendor}</Tag>
+                    <span style={{ fontWeight: 500 }}>{item.model_name}</span>
+                  </Space>
+                  <Button 
+                    type="primary" 
+                    size="small" 
+                    icon={<PlayCircleOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTestModel(item);
+                    }}
+                  >
+                    测试
+                  </Button>
+                </div>
+              </Card>
             </List.Item>
           )}
           locale={{ emptyText: '暂无可用模型，请先添加模型配置' }}
         />
       </Card>
+
+      {/* 测试对话弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <RobotOutlined />
+            <span>测试模型: {selectedModel?.model_name}</span>
+          </Space>
+        }
+        open={testModalVisible}
+        onCancel={() => setTestModalVisible(false)}
+        width={700}
+        footer={[
+          <Button key="close" onClick={() => setTestModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, color: '#666' }}>
+            <UserOutlined /> 发送消息:
+          </div>
+          <Input.TextArea
+            value={testMessage}
+            onChange={(e) => setTestMessage(e.target.value)}
+            placeholder="输入测试消息，例如：你好"
+            rows={3}
+            disabled={testing}
+          />
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={handleSendTestMessage}
+            loading={testing}
+            disabled={!testMessage.trim()}
+            style={{ marginTop: 8 }}
+          >
+            发送测试
+          </Button>
+        </div>
+
+        {testResponse && (
+          <div>
+            <div style={{ marginBottom: 8, color: '#666' }}>
+              <RobotOutlined /> 模型回复:
+            </div>
+            <Card 
+              size="small" 
+              style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}
+            >
+              <pre style={{ 
+                margin: 0, 
+                whiteSpace: 'pre-wrap', 
+                wordWrap: 'break-word',
+                fontFamily: 'inherit'
+              }}>
+                {testResponse}
+              </pre>
+            </Card>
+          </div>
+        )}
+
+        {testing && !testResponse && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16, color: '#999' }}>正在等待模型响应...</div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
