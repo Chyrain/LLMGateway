@@ -1,4 +1,5 @@
 import json
+import time
 import httpx
 from typing import AsyncGenerator, Dict, Any, List
 
@@ -109,15 +110,166 @@ class GatewayCore:
 
     # OpenAI参数到各厂商参数的映射
     PARAM_MAPPING = {
-        "openai": {"max_tokens": "max_tokens"},
-        "qwen": {"max_tokens": "max_output_tokens", "temperature": "temperature"},
-        "zhipu": {"max_tokens": "max_output_tokens", "temperature": "temperature"},
-        "claude": {"max_tokens": "max_tokens", "temperature": "temperature"},
-        "gemini": {
-            "max_output_tokens": "max_output_tokens",
+        "openai": {
+            "max_tokens": "max_tokens",
             "temperature": "temperature",
+            "top_p": "top_p",
+            "presence_penalty": "presence_penalty",
+            "frequency_penalty": "frequency_penalty",
+            "stop": "stop",
+        },
+        "qwen": {
+            "max_tokens": "max_tokens",
+            "temperature": "temperature",
+            "top_p": "top_p",
+        },
+        "zhipu": {
+            "max_tokens": "max_tokens",
+            "temperature": "temperature",
+            "top_p": "top_p",
+        },
+        "claude": {
+            "max_tokens": "max_tokens",
+            "temperature": "temperature",
+            "top_p": "top_p",
+            "stop": "stop",
+        },
+        "gemini": {
+            "max_tokens": "maxOutputTokens",
+            "temperature": "temperature",
+            "top_p": "topP",
+            "top_k": "topK",
+            "stop": "stopSequences",
+        },
+        "spark": {
+            "max_tokens": "max_tokens",
+            "temperature": "temperature",
+            "top_k": "top_k",
+        },
+        "doubao": {
+            "max_tokens": "max_tokens",
+            "temperature": "temperature",
+            "top_p": "top_p",
         },
     }
+
+    # 厂商特定的请求体构建器
+    @classmethod
+    def _build_vendor_request(cls, vendor: str, request_data: Dict) -> Dict:
+        """根据厂商构建特定的请求体"""
+        base_request = {
+            "model": request_data.get("model"),
+            "messages": request_data.get("messages", []),
+        }
+
+        # 复制标准参数
+        for param in ["temperature", "max_tokens", "top_p", "stop", "stream"]:
+            if param in request_data:
+                base_request[param] = request_data[param]
+
+        # 厂商特定处理
+        if vendor == "gemini":
+            return cls._build_gemini_request(request_data)
+        elif vendor == "claude":
+            return cls._build_claude_request(request_data)
+        elif vendor == "qwen":
+            return cls._build_qwen_request(request_data)
+
+        return base_request
+
+    @classmethod
+    def _build_gemini_request(cls, request_data: Dict) -> Dict:
+        """构建 Gemini 请求体"""
+        contents = []
+        system_instruction = None
+
+        for msg in request_data.get("messages", []):
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                system_instruction = {"parts": [{"text": content}]}
+            else:
+                gemini_role = "user" if role == "user" else "model"
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
+
+        request = {"contents": contents}
+
+        if system_instruction:
+            request["systemInstruction"] = system_instruction
+
+        # 生成配置
+        generation_config = {}
+        if "temperature" in request_data:
+            generation_config["temperature"] = request_data["temperature"]
+        if "max_tokens" in request_data:
+            generation_config["maxOutputTokens"] = request_data["max_tokens"]
+        if "top_p" in request_data:
+            generation_config["topP"] = request_data["top_p"]
+        if "top_k" in request_data:
+            generation_config["topK"] = request_data["top_k"]
+        if "stop" in request_data:
+            generation_config["stopSequences"] = (
+                request_data["stop"]
+                if isinstance(request_data["stop"], list)
+                else [request_data["stop"]]
+            )
+
+        if generation_config:
+            request["generationConfig"] = generation_config
+
+        return request
+
+    @classmethod
+    def _build_claude_request(cls, request_data: Dict) -> Dict:
+        """构建 Claude 请求体"""
+        messages = request_data.get("messages", [])
+        system_msg = None
+        chat_messages = []
+
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_msg = msg.get("content", "")
+            else:
+                chat_messages.append(msg)
+
+        request = {
+            "model": request_data.get("model"),
+            "messages": chat_messages,
+            "max_tokens": request_data.get("max_tokens", 4096),
+        }
+
+        if system_msg:
+            request["system"] = system_msg
+        if "temperature" in request_data:
+            request["temperature"] = request_data["temperature"]
+        if "top_p" in request_data:
+            request["top_p"] = request_data["top_p"]
+        if "stop" in request_data:
+            request["stop_sequences"] = (
+                request_data["stop"]
+                if isinstance(request_data["stop"], list)
+                else [request_data["stop"]]
+            )
+
+        return request
+
+    @classmethod
+    def _build_qwen_request(cls, request_data: Dict) -> Dict:
+        """构建 Qwen 请求体"""
+        messages = request_data.get("messages", [])
+
+        # Qwen 使用 input 字段
+        return {
+            "model": request_data.get("model"),
+            "input": {"messages": messages},
+            "parameters": {
+                "result_format": "message",
+                "max_tokens": request_data.get("max_tokens", 1500),
+                "temperature": request_data.get("temperature", 0.7),
+                "top_p": request_data.get("top_p", 0.8),
+            },
+        }
 
     @classmethod
     async def test_connectivity(
@@ -588,51 +740,184 @@ class GatewayCore:
     @classmethod
     def _map_params(cls, vendor: str, request_data: Dict) -> Dict:
         """参数映射 - 将OpenAI参数转换为目标厂商格式"""
-        mapping = cls.PARAM_MAPPING.get(vendor, {})
-        mapped = request_data.copy()
-
-        for openai_param, vendor_param in mapping.items():
-            if openai_param in mapped and openai_param != vendor_param:
-                mapped[vendor_param] = mapped.pop(openai_param)
-
-        return mapped
+        # 使用厂商特定的构建器
+        return cls._build_vendor_request(vendor, request_data)
 
     @classmethod
     def _standardize_response(cls, vendor: str, response_data: Dict) -> Dict:
         """响应标准化 - 将厂商响应转换为OpenAI格式"""
+        # 根据厂商使用特定的解析器
+        if vendor == "gemini":
+            return cls._parse_gemini_response(response_data)
+        elif vendor == "claude":
+            return cls._parse_claude_response(response_data)
+        elif vendor == "qwen":
+            return cls._parse_qwen_response(response_data)
+        else:
+            return cls._parse_openai_compatible_response(response_data)
+
+    @classmethod
+    def _parse_openai_compatible_response(cls, response_data: Dict) -> Dict:
+        """解析 OpenAI 兼容格式的响应"""
         standardized = {
             "id": response_data.get("id", f"chatcmpl-{id(response_data)}"),
             "object": "chat.completion",
-            "created": response_data.get("created", 0),
+            "created": response_data.get("created", int(time.time())),
             "model": response_data.get("model", "unknown"),
             "choices": [],
-            "usage": {},
+            "usage": response_data.get(
+                "usage",
+                {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+            ),
         }
 
         # 处理choices
         if "choices" in response_data:
             for choice in response_data["choices"]:
+                message = choice.get("message", {})
                 standardized["choices"].append(
                     {
                         "index": choice.get("index", 0),
                         "message": {
-                            "role": choice.get("message", {}).get("role", "assistant"),
-                            "content": choice.get("message", {}).get("content", ""),
+                            "role": message.get("role", "assistant"),
+                            "content": message.get("content", ""),
                         },
                         "finish_reason": choice.get("finish_reason", "stop"),
                     }
                 )
 
-        # 处理usage
-        if "usage" in response_data:
-            usage = response_data["usage"]
-            standardized["usage"] = {
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
+        return standardized
+
+    @classmethod
+    def _parse_gemini_response(cls, response_data: Dict) -> Dict:
+        """解析 Gemini 响应为 OpenAI 格式"""
+        candidates = response_data.get("candidates", [])
+        if not candidates:
+            return {
+                "id": f"chatcmpl-{id(response_data)}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": "gemini",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
 
-        return standardized
+        candidate = candidates[0]
+        content = candidate.get("content", {})
+        parts = content.get("parts", [{}])
+        text = parts[0].get("text", "") if parts else ""
+
+        usage_metadata = response_data.get("usageMetadata", {})
+
+        return {
+            "id": f"chatcmpl-{id(response_data)}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": "gemini",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": text,
+                    },
+                    "finish_reason": candidate.get("finishReason", "stop").lower(),
+                }
+            ],
+            "usage": {
+                "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                "total_tokens": usage_metadata.get("totalTokenCount", 0),
+            },
+        }
+
+    @classmethod
+    def _parse_claude_response(cls, response_data: Dict) -> Dict:
+        """解析 Claude 响应为 OpenAI 格式"""
+        content_blocks = response_data.get("content", [])
+        text = ""
+        for block in content_blocks:
+            if block.get("type") == "text":
+                text += block.get("text", "")
+
+        usage = response_data.get("usage", {})
+
+        return {
+            "id": response_data.get("id", f"chatcmpl-{id(response_data)}"),
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": response_data.get("model", "claude"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": text,
+                    },
+                    "finish_reason": response_data.get("stop_reason", "stop"),
+                }
+            ],
+            "usage": {
+                "prompt_tokens": usage.get("input_tokens", 0),
+                "completion_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("input_tokens", 0)
+                + usage.get("output_tokens", 0),
+            },
+        }
+
+    @classmethod
+    def _parse_qwen_response(cls, response_data: Dict) -> Dict:
+        """解析 Qwen 响应为 OpenAI 格式"""
+        output = response_data.get("output", {})
+        choices_data = output.get("choices", [])
+
+        if not choices_data:
+            return {
+                "id": response_data.get("request_id", f"chatcmpl-{id(response_data)}"),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": output.get("model", "qwen"),
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+            }
+
+        choice = choices_data[0]
+        message = choice.get("message", {})
+        usage = response_data.get("usage", {})
+
+        return {
+            "id": response_data.get("request_id", f"chatcmpl-{id(response_data)}"),
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": output.get("model", "qwen"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": message.get("role", "assistant"),
+                        "content": message.get("content", ""),
+                    },
+                    "finish_reason": choice.get("finish_reason", "stop"),
+                }
+            ],
+            "usage": {
+                "prompt_tokens": usage.get("input_tokens", 0),
+                "completion_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+        }
 
     @classmethod
     def _standardize_stream_chunk(cls, vendor: str, chunk: str) -> str:
