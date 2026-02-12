@@ -148,41 +148,30 @@ const QuotaMonitor = () => {
 
   const usageChartOption = {
     tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 30, bottom: 30 },
     xAxis: {
       type: 'category',
-      boundaryGap: false,
-      data: (usageTrend || []).map(item => item.date)
+      data: Array.isArray(usageTrend) ? usageTrend.map(item => item.date) : []
     },
-    yAxis: { type: 'value', minInterval: 1 },
-    series: [
-      {
-        name: '请求次数',
-        type: 'line',
-        data: (usageTrend || []).map(item => item.requests),
-        itemStyle: { color: '#1890ff' },
-        areaStyle: { color: 'rgba(24, 144, 255, 0.2)' }
-      }
-    ]
+    yAxis: { type: 'value' },
+    series: [{
+      data: Array.isArray(usageTrend) ? usageTrend.map(item => item.requests) : [],
+      type: 'line',
+      smooth: false,
+      areaStyle: { opacity: 0.3 },
+      itemStyle: { color: '#1890ff' }
+    }]
   };
 
   const rankingChartOption = {
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    series: [
-      {
-        name: '模型使用',
-        type: 'pie',
-        radius: ['45%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false },
-        emphasis: { label: { show: true, fontSize: 14 } },
-        data: (modelRanking || []).slice(0, 5).map(item => ({
-          value: item.requests || 0,
-          name: item.model || '未知模型'
-        }))
-      }
-    ]
+    tooltip: { trigger: 'item' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      data: Array.isArray(modelRanking) ? modelRanking.slice(0, 5).map(item => ({
+        value: item.requests || 0,
+        name: item.model || '未知'
+      })) : []
+    }]
   };
 
   const statusColors = {
