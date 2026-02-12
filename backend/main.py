@@ -461,7 +461,7 @@ class ChatMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str
+    model: Optional[str] = None  # 可选，不传时自动使用最高优先级模型
     messages: List[ChatMessage]
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
@@ -522,35 +522,48 @@ async def chat_completions(
     # 获取模型配置 - 根据请求的 model 名称查找
     db = SessionLocal()
     try:
-        # 首先尝试根据请求的 model 名称查找
-        current_model = (
-            db.query(ModelConfig)
-            .filter(
-                ModelConfig.status == 1,
-                ModelConfig.connect_status == 1,
-                ModelConfig.model_name == request.model,
-            )
-            .first()
-        )
+        requested_model = request.model
 
-        # 如果没找到指定模型，使用优先级最高的可用模型
-        if not current_model:
+        # 如果没有指定模型或模型名称为空，使用优先级最高的可用模型
+        if not requested_model:
             current_model = (
                 db.query(ModelConfig)
                 .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
                 .order_by(ModelConfig.priority)
                 .first()
             )
-            print(
-                f"[WARNING] 未找到模型 '{request.model}'，使用默认模型: {current_model.model_name if current_model else 'None'}"
+            if current_model:
+                print(
+                    f"[INFO] 未指定模型，自动使用优先级最高的模型: {current_model.vendor} - {current_model.model_name}"
+                )
+        else:
+            # 尝试根据请求的 model 名称查找
+            current_model = (
+                db.query(ModelConfig)
+                .filter(
+                    ModelConfig.status == 1,
+                    ModelConfig.connect_status == 1,
+                    ModelConfig.model_name == requested_model,
+                )
+                .first()
             )
+
+            # 如果没找到指定模型，使用优先级最高的可用模型
+            if not current_model:
+                current_model = (
+                    db.query(ModelConfig)
+                    .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
+                    .order_by(ModelConfig.priority)
+                    .first()
+                )
+                print(
+                    f"[WARNING] 未找到模型 '{requested_model}'，自动切换到: {current_model.vendor} - {current_model.model_name if current_model else 'None'}"
+                )
     finally:
         db.close()
 
     if not current_model:
-        raise HTTPException(
-            status_code=503, detail=f"模型 '{request.model}' 不可用，请先配置模型"
-        )
+        raise HTTPException(status_code=503, detail="无可用模型，请先配置模型")
 
     request_data = {
         "model": current_model.model_name,
