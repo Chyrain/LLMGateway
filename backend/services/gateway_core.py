@@ -80,10 +80,11 @@ class GatewayCore:
         },
         "ollama": {
             "api_base": "http://localhost:11434",
-            "api_path": "/api/chat",
+            "api_path": "/v1/chat/completions",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
             "stream_support": True,
+            "openai_compatible": True,
         },
         "localai": {
             "api_base": "http://localhost:8080",
@@ -168,14 +169,18 @@ class GatewayCore:
                 base_request[param] = request_data[param]
 
         # 厂商特定处理
+        config = cls.VENDOR_CONFIGS.get(vendor, {})
+
+        # 如果是 OpenAI 兼容模式，直接使用标准格式
+        if config.get("openai_compatible"):
+            return request_data
+
         if vendor == "gemini":
             return cls._build_gemini_request(request_data)
         elif vendor == "claude":
             return cls._build_claude_request(request_data)
         elif vendor == "qwen":
             return cls._build_qwen_request(request_data)
-        elif vendor == "ollama":
-            return cls._build_ollama_request(request_data)
 
         return base_request
 
@@ -837,14 +842,18 @@ class GatewayCore:
     def _standardize_response(cls, vendor: str, response_data: Dict) -> Dict:
         """响应标准化 - 将厂商响应转换为OpenAI格式"""
         # 根据厂商使用特定的解析器
+        config = cls.VENDOR_CONFIGS.get(vendor, {})
+
+        # 如果是 OpenAI 兼容模式，直接返回原始响应
+        if config.get("openai_compatible"):
+            return response_data
+
         if vendor == "gemini":
             return cls._parse_gemini_response(response_data)
         elif vendor == "claude":
             return cls._parse_claude_response(response_data)
         elif vendor == "qwen":
             return cls._parse_qwen_response(response_data)
-        elif vendor == "ollama":
-            return cls._parse_ollama_response(response_data)
         else:
             return cls._parse_openai_compatible_response(response_data)
 
