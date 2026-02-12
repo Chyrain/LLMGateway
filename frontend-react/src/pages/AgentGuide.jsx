@@ -75,12 +75,14 @@ const AgentGuide = () => {
         })
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `请求失败: ${response.status}`);
+        // 支持多种错误格式
+        const errorMsg = data.detail || data.base_resp?.status_msg || data.error?.message || `请求失败: ${response.status}`;
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
       const content = data.choices?.[0]?.message?.content || '无响应内容';
       setTestResponse(content);
     } catch (error) {
@@ -338,17 +340,21 @@ print(response.content)`;
         {testResponse && (
           <div>
             <div style={{ marginBottom: 8, color: '#666' }}>
-              <RobotOutlined /> 模型回复:
+              <RobotOutlined /> {testResponse.startsWith('请求失败') ? '错误信息:' : '模型回复:'}
             </div>
             <Card 
               size="small" 
-              style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}
+              style={{ 
+                background: testResponse.startsWith('请求失败') ? '#fff2f0' : '#f6ffed', 
+                border: `1px solid ${testResponse.startsWith('请求失败') ? '#ffccc7' : '#b7eb8f'}` 
+              }}
             >
               <pre style={{ 
                 margin: 0, 
                 whiteSpace: 'pre-wrap', 
                 wordWrap: 'break-word',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                color: testResponse.startsWith('请求失败') ? '#cf1322' : '#135200'
               }}>
                 {testResponse}
               </pre>
