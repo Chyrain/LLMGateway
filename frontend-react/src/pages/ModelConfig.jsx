@@ -15,89 +15,174 @@ const VENDOR_CONFIGS = {
   openai: {
     name: 'OpenAI',
     apiBase: 'https://api.openai.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
     models: ['gpt-3.5-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4'],
     needApiKey: true
   },
   qwen: {
     name: '通义千问',
     apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
     models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen2-72b-instruct'],
     needApiKey: true
   },
   zhipu: {
-    name: '智谱清言',
-    apiBase: 'https://api.bigmodel.cn/api/llm/v3.5',
-    models: ['glm-3-turbo', 'glm-4', 'glm-4v', 'glm-4-plus'],
+    name: '智谱 AI',
+    apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['glm-3-turbo', 'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4.7'],
     needApiKey: true
   },
   spark: {
     name: '讯飞星火',
-    apiBase: 'https://spark-api.xf-yun.com/v3.1/chat',
+    apiBase: 'https://spark-api.xf-yun.com',
+    apiPath: '/v3.5/chat',
+    apiSpec: 'openai',
     models: ['spark-v3.1', 'spark-v3.5'],
     needApiKey: true
   },
   doubao: {
     name: '字节豆包',
     apiBase: 'https://ark.cn-beijing.volces.com/api/v3',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
     models: ['Doubao-pro-32k', 'Doubao-pro-128k'],
     needApiKey: true
   },
   claude: {
     name: 'Claude',
     apiBase: 'https://api.anthropic.com/v1',
+    apiPath: '/messages',
+    apiSpec: 'anthropic',
     models: ['claude-sonnet-4-20250514', 'claude-haiku-3-20250514', 'claude-opus-4-20250514'],
     needApiKey: true
   },
   gemini: {
     name: 'Google Gemini',
     apiBase: 'https://generativelanguage.googleapis.com/v1beta',
+    apiPath: '/models/gemini-pro:generateContent',
+    apiSpec: 'gemini',
     models: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'],
     needApiKey: true
   },
   mistral: {
     name: 'Mistral AI',
     apiBase: 'https://api.mistral.ai/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
     models: ['mistral-tiny', 'mistral-small', 'mistral-medium', 'mistral-large', 'open-mistral-7b'],
     needApiKey: true
   },
+  perplexity: {
+    name: 'Perplexity',
+    apiBase: 'https://api.perplexity.ai',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['sonar-small-online', 'sonar-medium-online', 'sonar-large-online'],
+    needApiKey: true
+  },
   groq: {
-    name: 'Groq (Llama3)',
+    name: 'Groq',
     apiBase: 'https://api.groq.com/openai/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
     models: ['llama3-8b-8192', 'llama3-70b-8192', 'mixtral-8x7b-32768'],
+    needApiKey: true
+  },
+  minimax: {
+    name: 'MiniMax',
+    apiBase: 'https://api.minimax.io/v1/text',
+    apiPath: '/chatcompletion_v2',
+    apiSpec: 'openai',
+    models: ['MiniMax-M1', 'MiniMax-Text-01', 'abab6.5s-chat', 'abab6.5-chat'],
+    needApiKey: true
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    apiBase: 'https://api.deepseek.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+    needApiKey: true
+  },
+  moonshot: {
+    name: '月之暗面 (Moonshot)',
+    apiBase: 'https://api.moonshot.cn/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+    needApiKey: true
+  },
+  stepfun: {
+    name: '阶跃星辰 (StepFun)',
+    apiBase: 'https://api.stepfun.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['step-1v-8k', 'step-1v-32k', 'step-1v-128k'],
     needApiKey: true
   },
   // 本地模型
   ollama: {
     name: 'Ollama (本地)',
-    apiBase: 'http://localhost:11434/v1',
+    apiBase: 'http://localhost:11434',
+    apiPath: '/v1/chat/completions',
+    apiSpec: 'openai',
     models: ['llama3', 'llama3.1', 'qwen2', 'mistral', 'codellama', 'phi3'],
     needApiKey: false
   },
   localai: {
     name: 'LocalAI (本地)',
-    apiBase: 'http://localhost:8080/v1',
+    apiBase: 'http://localhost:8080',
+    apiPath: '/v1/chat/completions',
+    apiSpec: 'openai',
     models: ['llama-2-7b', 'mistral-7b', 'codellama-7b', 'gpt-4all'],
     needApiKey: false
   },
   lmstudio: {
     name: 'LM Studio (本地)',
-    apiBase: 'http://localhost:1234/v1',
+    apiBase: 'http://localhost:1234',
+    apiPath: '/v1/chat/completions',
+    apiSpec: 'openai',
     models: ['llama-3-8b', 'mistral-7b', 'neural-chat', 'starcoder'],
     needApiKey: false
   },
   vllm: {
     name: 'vLLM (本地)',
-    apiBase: 'http://localhost:8000/v1',
+    apiBase: 'http://localhost:8000',
+    apiPath: '/v1/chat/completions',
+    apiSpec: 'openai',
     models: ['llama-2-7b', 'llama-2-13b', 'llama-2-70b', 'qwen-14b'],
     needApiKey: false
+  },
+  // 自定义厂商
+  custom: {
+    name: '自定义',
+    apiBase: '',
+    apiPath: '',
+    apiSpec: 'openai',
+    models: [],
+    needApiKey: true,
+    isCustom: true
   }
 };
+
+// API 规范选项
+const API_SPEC_OPTIONS = [
+  { value: 'openai', label: 'OpenAI 兼容 (推荐)', description: '标准 OpenAI API 格式' },
+  { value: 'anthropic', label: 'Anthropic Claude 兼容', description: 'Claude API 格式' },
+  { value: 'gemini', label: 'Google Gemini 兼容', description: 'Gemini API 格式' },
+  { value: 'custom', label: '完全自定义', description: '需要手动配置请求/响应格式' },
+];
 
 // 厂商选项
 const vendorOptions = Object.entries(VENDOR_CONFIGS).map(([value, config]) => ({
   value,
   label: config.name,
-  needApiKey: config.needApiKey
+  needApiKey: config.needApiKey,
+  isCustom: config.isCustom || false
 }));
 
 const ModelConfig = () => {
@@ -159,10 +244,12 @@ const ModelConfig = () => {
     const config = VENDOR_CONFIGS[vendor];
     
     if (config && modalType === 'add') {
-      // 自动填充 API Base 和默认模型
+      // 自动填充 API Base、Path、Spec 和默认模型
       form.setFieldsValue({
         api_base: config.apiBase,
-        model_name: config.models[0]
+        api_path: config.apiPath,
+        api_spec: config.apiSpec,
+        model_name: config.models[0] || ''
       });
     }
   };
@@ -337,7 +424,14 @@ const ModelConfig = () => {
     {
       title: 'API Base',
       dataIndex: 'api_base',
-      ellipsis: true
+      ellipsis: true,
+      render: (text) => <span style={{ fontSize: 12 }}>{text || '-'}</span>
+    },
+    {
+      title: 'API Path',
+      dataIndex: 'api_path',
+      ellipsis: true,
+      render: (text) => <span style={{ fontSize: 12, color: '#666' }}>{text || '-'}</span>
     },
     {
       title: '状态',
@@ -535,7 +629,28 @@ const ModelConfig = () => {
             tooltip={selectedVendor ? `默认值: ${VENDOR_CONFIGS[selectedVendor]?.apiBase || ''}` : ''}
             rules={[{ required: true, message: '请输入 API Base 地址' }]}
           >
-            <Input placeholder={selectedVendor ? VENDOR_CONFIGS[selectedVendor]?.apiBase : 'https://api.example.com/v1'} />
+            <Input placeholder={selectedVendor ? VENDOR_CONFIGS[selectedVendor]?.apiBase : 'https://api.example.com'} />
+          </Form.Item>
+          
+          <Form.Item
+            name="api_path"
+            label="API Path"
+            tooltip={selectedVendor ? `默认值: ${VENDOR_CONFIGS[selectedVendor]?.apiPath || ''}` : '请求路径，如 /chat/completions'}
+            rules={[{ required: true, message: '请输入 API Path' }]}
+          >
+            <Input placeholder={selectedVendor ? VENDOR_CONFIGS[selectedVendor]?.apiPath : '/chat/completions'} />
+          </Form.Item>
+          
+          <Form.Item
+            name="api_spec"
+            label="API 规范"
+            tooltip="选择 API 规范类型，不同规范会影响请求/响应的参数映射"
+            rules={[{ required: true, message: '请选择 API 规范' }]}
+          >
+            <Select
+              placeholder="选择 API 规范"
+              options={API_SPEC_OPTIONS}
+            />
           </Form.Item>
           
           <Form.Item
