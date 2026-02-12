@@ -151,7 +151,7 @@ const QuotaMonitor = () => {
     legend: { data: ['请求次数'] },
     xAxis: {
       type: 'category',
-      data: usageTrend.map(item => item.date)
+      data: (usageTrend || []).map(item => item.date)
     },
     yAxis: { type: 'value' },
     series: [
@@ -159,7 +159,7 @@ const QuotaMonitor = () => {
         name: '请求次数',
         type: 'line',
         smooth: true,
-        data: usageTrend.map(item => item.requests),
+        data: (usageTrend || []).map(item => item.requests),
         itemStyle: { color: '#1890ff' },
         areaStyle: { color: 'rgba(24, 144, 255, 0.1)' }
       }
@@ -173,11 +173,7 @@ const QuotaMonitor = () => {
       {
         name: '模型使用',
         type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        label: { show: false },
-        emphasis: { label: { show: true, fontSize: 16 } },
-        data: modelRanking.slice(0, 5).map(item => ({
+        data: (modelRanking || []).slice(0, 5).map(item => ({
           value: item.requests,
           name: item.model
         }))
