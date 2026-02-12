@@ -485,7 +485,10 @@ class GatewayCore:
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
 
-        url = f"{api_base}{config.get('api_path', '/v1/chat/completions')}"
+        # 清理 api_base，避免双斜杠
+        api_base_clean = api_base.rstrip("/")
+        api_path = config.get("api_path", "/v1/chat/completions")
+        url = f"{api_base_clean}{api_path}"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=mapped_request, headers=headers)
@@ -511,7 +514,10 @@ class GatewayCore:
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
 
-        url = f"{api_base}{config.get('api_path', '/v1/chat/completions')}"
+        # 清理 api_base，避免双斜杠
+        api_base_clean = api_base.rstrip("/")
+        api_path = config.get("api_path", "/v1/chat/completions")
+        url = f"{api_base_clean}{api_path}"
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream(
