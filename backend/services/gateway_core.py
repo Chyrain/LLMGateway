@@ -416,6 +416,8 @@ class GatewayCore:
                 return await cls._fetch_openai_compatible_models(
                     vendor, api_base, api_key
                 )
+            elif vendor == "ollama":
+                return await cls._fetch_ollama_models(api_base)
             else:
                 # 其他厂商使用内置列表
                 return {
@@ -535,6 +537,46 @@ class GatewayCore:
     ) -> Dict[str, Any]:
         """获取 OpenAI 兼容格式的模型列表"""
         return await cls._fetch_openai_models(api_base, api_key)
+
+    @classmethod
+    async def _fetch_ollama_models(cls, api_base: str) -> Dict[str, Any]:
+        """获取 Ollama 本地模型列表"""
+        try:
+            api_base_clean = api_base.rstrip("/")
+            url = f"{api_base_clean}/api/tags"
+
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=False
+            ) as client:
+                response = await client.get(url)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    models = []
+                    for model in data.get("models", []):
+                        model_name = model.get("name", "")
+                        models.append(
+                            {
+                                "id": model_name,
+                                "name": model_name,
+                                "description": f"Size: {model.get('size', 'unknown')}, Modified: {model.get('modified_at', 'unknown')}",
+                            }
+                        )
+
+                    return {
+                        "success": True,
+                        "message": f"成功获取 {len(models)} 个本地模型",
+                        "models": models,
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Ollama API返回错误: {response.status_code}",
+                        "models": [],
+                    }
+
+        except Exception as e:
+            return {"success": False, "message": f"请求失败: {str(e)}", "models": []}
 
     @classmethod
     def _get_builtin_models(cls, vendor: str) -> List[Dict[str, Any]]:
