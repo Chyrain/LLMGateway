@@ -25,8 +25,8 @@ class GatewayCore:
             "stream_support": True,
         },
         "zhipu": {
-            "api_base": "https://open.bigmodel.cn",
-            "api_path": "/api/llm/v3.5/chatcompletions_pro",
+            "api_base": "https://open.bigmodel.cn/api/paas/v4",
+            "api_path": "/chat/completions",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
             "stream_support": True,
