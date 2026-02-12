@@ -438,6 +438,46 @@ class ChatCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+@app.get("/v1/models")
+async def list_models_v1(authorization: Optional[str] = Header(None)):
+    """OpenAI兼容的模型列表接口
+
+    供第三方客户端检测可用的模型列表
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="缺少有效的API Key")
+
+    gateway_api_key = authorization.replace("Bearer ", "")
+
+    # 获取所有启用的模型
+    db = SessionLocal()
+    try:
+        models = (
+            db.query(ModelConfig)
+            .filter(ModelConfig.status == 1)
+            .order_by(ModelConfig.priority)
+            .all()
+        )
+
+        # 转换为 OpenAI 格式
+        models_data = []
+        for model in models:
+            models_data.append(
+                {
+                    "id": model.model_name,
+                    "object": "model",
+                    "created": int(model.create_time.timestamp())
+                    if model.create_time
+                    else 0,
+                    "owned_by": model.vendor,
+                }
+            )
+
+        return {"object": "list", "data": models_data}
+    finally:
+        db.close()
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(
     request: ChatCompletionRequest, authorization: Optional[str] = Header(None)
