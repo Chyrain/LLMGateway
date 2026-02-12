@@ -539,7 +539,7 @@ async def chat_completions(
 
         # 支持 "auto" 模式或 model 为空
         if requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model:
-            # 自动模式：根据优先级和额度选择最优模型
+            # 自动模式：选择优先级最高且已连通的模型
             current_model = (
                 db.query(ModelConfig)
                 .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
@@ -548,8 +548,10 @@ async def chat_completions(
             )
             if current_model:
                 print(
-                    f"[AUTO] 自动模式，使用优先级最高的模型: {current_model.vendor} - {current_model.model_name}"
+                    f"[AUTO] 自动模式，使用模型: {current_model.vendor} - {current_model.model_name}"
                 )
+            else:
+                raise HTTPException(status_code=503, detail="无可用模型（自动模式）")
         else:
             # 尝试根据请求的 model 名称查找
             current_model = (
@@ -570,9 +572,15 @@ async def chat_completions(
                     .order_by(ModelConfig.priority)
                     .first()
                 )
-                print(
-                    f"[WARNING] 未找到模型 '{requested_model}'，自动切换到: {current_model.vendor} - {current_model.model_name if current_model else 'None'}"
-                )
+                if current_model:
+                    print(
+                        f"[WARNING] 未找到模型 '{requested_model}'，自动切换到: {current_model.vendor} - {current_model.model_name}"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"模型 '{requested_model}' 不可用，且无备用模型",
+                    )
     finally:
         db.close()
 
