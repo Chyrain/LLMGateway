@@ -40,8 +40,33 @@ const VENDOR_CONFIGS = {
     name: '讯飞星火',
     apiBase: 'https://spark-api.xf-yun.com',
     apiPath: '/v3.5/chat',
-    apiSpec: 'openai',
+    apiSpec: 'spark',
     models: ['spark-v3.1', 'spark-v3.5'],
+    needApiKey: true
+  },
+  spark_ws: {
+    name: '讯飞星火 (WebSocket)',
+    apiBase: 'wss://spark-api.xf-yun.com',
+    apiPath: '/v3.5/chat',
+    apiSpec: 'spark_ws',
+    models: ['spark-v3.1', 'spark-v3.5'],
+    needApiKey: true,
+    needSecret: true
+  },
+  hunyuan: {
+    name: '腾讯混元',
+    apiBase: 'https://api.hunyuan.cloud.tencent.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['hunyuan-turbos-latest', 'hunyuan-pro-latest'],
+    needApiKey: true
+  },
+  qwen_official: {
+    name: '通义千问 (官方)',
+    apiBase: 'https://dashscope.aliyuncs.com',
+    apiPath: '/api/v1/services/aigc/text-generation/generation',
+    apiSpec: 'qwen_official',
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max'],
     needApiKey: true
   },
   doubao: {

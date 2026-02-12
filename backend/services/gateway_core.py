@@ -43,7 +43,35 @@ class GatewayCore:
             "auth_header": "Authorization",
             "auth_format": "Bearer",
             "stream_support": True,
+            "api_spec": "spark",
+        },
+        "spark_websocket": {
+            "name": "讯飞星火 (WebSocket)",
+            "api_base": "wss://spark-api.xf-yun.com",
+            "api_path": "/v3.5/chat",
+            "auth_header": "Authorization",
+            "auth_format": "HMAC",
+            "stream_support": True,
+            "api_spec": "spark_ws",
+            "need_sign": True,
+        },
+        "hunyuan": {
+            "name": "腾讯混元",
+            "api_base": "https://api.hunyuan.cloud.tencent.com/v1",
+            "api_path": "/chat/completions",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": True,
             "api_spec": "openai",
+        },
+        "qwen_official": {
+            "name": "通义千问 (官方)",
+            "api_base": "https://dashscope.aliyuncs.com",
+            "api_path": "/api/v1/services/aigc/text-generation/generation",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": True,
+            "api_spec": "qwen_official",
         },
         "doubao": {
             "name": "豆包",
@@ -291,6 +319,10 @@ class GatewayCore:
             return cls._build_claude_request(request_data)
         elif vendor == "qwen":
             return cls._build_qwen_request(request_data)
+        elif vendor in ["qwen_official"]:
+            return cls._build_qwen_official_request(request_data)
+        elif vendor == "spark":
+            return cls._build_spark_request(request_data)
 
         return base_request
 
@@ -373,7 +405,7 @@ class GatewayCore:
 
     @classmethod
     def _build_qwen_request(cls, request_data: Dict) -> Dict:
-        """构建 Qwen 请求体"""
+        """构建 Qwen OpenAI 兼容格式请求体"""
         messages = request_data.get("messages", [])
 
         # Qwen 使用 input 字段
@@ -386,6 +418,56 @@ class GatewayCore:
                 "temperature": request_data.get("temperature", 0.7),
                 "top_p": request_data.get("top_p", 0.8),
             },
+        }
+
+    @classmethod
+    def _build_qwen_official_request(cls, request_data: Dict) -> Dict:
+        """构建 Qwen 官方格式请求体"""
+        messages = request_data.get("messages", [])
+
+        # 构建 Qwen 官方格式
+        return {
+            "model": request_data.get("model"),
+            "input": {
+                "messages": [
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                    for msg in messages
+                ]
+            },
+            "parameters": {
+                "result_format": "message",
+                "max_output_tokens": request_data.get("max_tokens", 1500),
+                "temperature": request_data.get("temperature", 0.7),
+                "top_p": request_data.get("top_p", 0.8),
+            },
+        }
+
+    @classmethod
+    def _build_spark_request(cls, request_data: Dict) -> Dict:
+        """构建讯飞星火官方格式请求体"""
+        messages = request_data.get("messages", [])
+
+        # 构建星火格式的消息
+        text = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            text.append({"role": role, "content": content})
+
+        return {
+            "header": {
+                "app_id": "",  # 需要从配置获取
+                "uid": "gateway-user",
+            },
+            "parameter": {
+                "chat": {
+                    "domain": request_data.get("model", "generalv3.5"),
+                    "temperature": request_data.get("temperature", 0.5),
+                    "max_tokens": request_data.get("max_tokens", 2048),
+                    "top_k": 4,
+                }
+            },
+            "payload": {"message": {"text": text}},
         }
 
     @classmethod
@@ -951,6 +1033,10 @@ class GatewayCore:
             return cls._parse_claude_response(response_data)
         elif vendor == "qwen":
             return cls._parse_qwen_response(response_data)
+        elif vendor == "qwen_official":
+            return cls._parse_qwen_official_response(response_data)
+        elif vendor == "spark":
+            return cls._parse_spark_response(response_data)
         else:
             return cls._parse_openai_compatible_response(response_data)
 
@@ -1114,6 +1200,87 @@ class GatewayCore:
                 "prompt_tokens": usage.get("input_tokens", 0),
                 "completion_tokens": usage.get("output_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
+            },
+        }
+
+    @classmethod
+    def _parse_qwen_official_response(cls, response_data: Dict) -> Dict:
+        """解析 Qwen 官方格式响应为 OpenAI 格式"""
+        output = response_data.get("output", {})
+        choices_data = output.get("choices", [])
+
+        if not choices_data:
+            return {
+                "id": response_data.get("request_id", f"chatcmpl-{id(response_data)}"),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": output.get("model", "qwen"),
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+            }
+
+        choice = choices_data[0]
+        message = choice.get("message", {})
+        usage = response_data.get("usage", {})
+
+        return {
+            "id": response_data.get("request_id", f"chatcmpl-{id(response_data)}"),
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": output.get("model", "qwen"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": message.get("role", "assistant"),
+                        "content": message.get("content", ""),
+                    },
+                    "finish_reason": choice.get("finish_reason", "stop"),
+                }
+            ],
+            "usage": {
+                "prompt_tokens": usage.get("input_tokens", 0),
+                "completion_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+        }
+
+    @classmethod
+    def _parse_spark_response(cls, response_data: Dict) -> Dict:
+        """解析讯飞星火响应为 OpenAI 格式"""
+        header = response_data.get("header", {})
+        payload = response_data.get("payload", {})
+        choices_data = payload.get("choices", {}).get("text", [])
+
+        text = ""
+        if choices_data:
+            text = choices_data[0].get("content", "")
+
+        return {
+            "id": header.get("sid", f"chatcmpl-{id(response_data)}"),
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": response_data.get("header", {})
+            .get("skill", {})
+            .get("name", "spark"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": text,
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
             },
         }
 
