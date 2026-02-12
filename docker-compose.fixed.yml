@@ -17,7 +17,7 @@ services:
       - SYNC_INTERVAL=10
       - API_MODE=true
     volumes:
-      - ./runtime_data/backend_data:/data
+      - backend_data:/data
       - ./backend/logs:/app/logs
     restart: unless-stopped
     networks:
@@ -37,7 +37,7 @@ services:
       - API_PORT=8080
       - GATEWAY_MODE=true
     volumes:
-      - ./runtime_data/backend_data:/data
+      - backend_data:/data
     restart: unless-stopped
     networks:
       - llmgateway-network
@@ -50,6 +50,8 @@ services:
     container_name: llmgateway-frontend
     ports:
       - "80:80"
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
     restart: unless-stopped
     networks:
       - llmgateway-network
@@ -66,11 +68,18 @@ services:
     container_name: llmgateway-frontend-react
     ports:
       - "88:80"
+    volumes:
+      - frontend_react_dist:/usr/share/nginx/html
     restart: unless-stopped
     networks:
       - llmgateway-network
     depends_on:
       - backend
+
+volumes:
+  backend_data:
+  frontend_dist:
+  frontend_react_dist:
 
 networks:
   llmgateway-network:

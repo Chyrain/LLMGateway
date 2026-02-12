@@ -1,10 +1,11 @@
 import json
 import httpx
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict, Any, List
+
 
 class GatewayCore:
     """网关核心服务 - 请求转发与响应映射"""
-    
+
     # 厂商API配置模板
     VENDOR_CONFIGS = {
         "openai": {
@@ -13,225 +14,583 @@ class GatewayCore:
             "stream_path": "/v1/chat/completions",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "qwen": {
             "api_base": "https://dashscope.aliyuncs.com",
             "api_path": "/api/v1/services/aigc/text-generation/generation",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "zhipu": {
             "api_base": "https://open.bigmodel.cn",
             "api_path": "/api/llm/v3.5/chatcompletions_pro",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "spark": {
             "api_base": "https://spark-api.xf-yun.com",
             "api_path": "/v3.1/chat",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "doubao": {
             "api_base": "https://ark.cn-beijing.volces.com",
             "api_path": "/api/v3/bots/chat_sessions",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "claude": {
             "api_base": "https://api.anthropic.com",
             "api_path": "/v1/messages",
             "auth_header": "x-api-key",
             "auth_format": "",
-            "stream_support": True
+            "stream_support": True,
         },
         "gemini": {
             "api_base": "https://generativelanguage.googleapis.com",
             "api_path": "/v1beta/models/gemini-pro:generateContent",
             "auth_header": "x-goog-api-key",
             "auth_format": "",
-            "stream_support": False
+            "stream_support": False,
         },
         "mistral": {
             "api_base": "https://api.mistral.ai",
             "api_path": "/v1/chat/completions",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": True
+            "stream_support": True,
         },
         "perplexity": {
             "api_base": "https://api.perplexity.ai",
             "api_path": "/chat/completions",
             "auth_header": "Authorization",
-            "auth_format": "Bearer"
+            "auth_format": "Bearer",
         },
         "groq": {
             "api_base": "https://api.groq.com",
             "api_path": "/openai/v1/chat/completions",
             "auth_header": "Authorization",
-            "auth_format": "Bearer"
-        }
+            "auth_format": "Bearer",
+        },
+        "ollama": {
+            "api_base": "http://localhost:11434",
+            "api_path": "/v1/chat/completions",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": False,
+        },
+        "localai": {
+            "api_base": "http://localhost:8080",
+            "api_path": "/v1/chat/completions",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": False,
+        },
+        "lmstudio": {
+            "api_base": "http://localhost:1234",
+            "api_path": "/v1/chat/completions",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": False,
+        },
+        "vllm": {
+            "api_base": "http://localhost:8000",
+            "api_path": "/v1/chat/completions",
+            "auth_header": "Authorization",
+            "auth_format": "Bearer",
+            "stream_support": True,
+        },
     }
-    
+
     # OpenAI参数到各厂商参数的映射
     PARAM_MAPPING = {
-        "openai": {
-            "max_tokens": "max_tokens"
-        },
-        "qwen": {
-            "max_tokens": "max_output_tokens",
-            "temperature": "temperature"
-        },
-        "zhipu": {
-            "max_tokens": "max_output_tokens",
-            "temperature": "temperature"
-        },
-        "claude": {
-            "max_tokens": "max_tokens",
-            "temperature": "temperature"
-        },
+        "openai": {"max_tokens": "max_tokens"},
+        "qwen": {"max_tokens": "max_output_tokens", "temperature": "temperature"},
+        "zhipu": {"max_tokens": "max_output_tokens", "temperature": "temperature"},
+        "claude": {"max_tokens": "max_tokens", "temperature": "temperature"},
         "gemini": {
             "max_output_tokens": "max_output_tokens",
-            "temperature": "temperature"
-        }
+            "temperature": "temperature",
+        },
     }
-    
+
     @classmethod
-    async def test_connectivity(cls, vendor: str, api_base: str, api_key: str) -> bool:
+    async def test_connectivity(
+        cls, vendor: str, api_base: str, api_key: str, model_name: str = None
+    ) -> bool:
         """测试模型连通性"""
         try:
+            if not api_base.startswith(("http://", "https://")):
+                print(
+                    f"连通性测试失败: API Base URL 格式错误，应以 http:// 或 https:// 开头"
+                )
+                return False
+
             config = cls.VENDOR_CONFIGS.get(vendor, {})
             headers = cls._build_headers(vendor, api_key, config)
-            
-            # 构建测试请求
-            test_request = cls._build_test_request(vendor)
-            url = f"{api_base}{config.get('api_path', '/v1/chat/completions')}"
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
+
+            test_request = cls._build_test_request(vendor, model_name)
+            api_path = config.get("api_path", "/v1/chat/completions")
+
+            api_base_clean = api_base.rstrip("/")
+            if api_base_clean.endswith("/v1"):
+                api_base_clean = api_base_clean[:-3]
+            url = f"{api_base_clean}{api_path}"
+
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=False
+            ) as client:
                 response = await client.post(url, json=test_request, headers=headers)
-                return response.status_code == 200
-                
+                if response.status_code == 200:
+                    return True
+                elif 400 <= response.status_code < 500:
+                    return False
+                else:
+                    return True
+
         except Exception as e:
             print(f"连通性测试失败: {e}")
             return False
-    
+
+            config = cls.VENDOR_CONFIGS.get(vendor, {})
+            headers = cls._build_headers(vendor, api_key, config)
+
+            test_request = cls._build_test_request(vendor, model_name)
+            api_path = config.get("api_path", "/v1/chat/completions")
+            api_base_clean = api_base.rstrip("/")
+            if api_base_clean.endswith("/v1"):
+                api_base_clean = api_base_clean[:-3]
+            url = f"{api_base_clean}{api_path}"
+            print(f"[DEBUG] Test request URL: {url}")
+            print(f"[DEBUG] Test request body: {test_request}")
+            print(f"[DEBUG] Headers: {headers}")
+
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=False
+            ) as client:
+                response = await client.post(url, json=test_request, headers=headers)
+                print(f"[DEBUG] Response status: {response.status_code}")
+                print(
+                    f"[DEBUG] Response body: {response.text[:500] if response.text else 'empty'}"
+                )
+                if response.status_code == 200:
+                    return True
+                elif 400 <= response.status_code < 500:
+                    return False
+                else:
+                    print(
+                        f"[DEBUG] Server responded with status {response.status_code}, treating as connected"
+                    )
+                    return True
+
+        except Exception as e:
+            print(f"连通性测试失败: {e}")
+            return False
+
+    @classmethod
+    async def fetch_available_models(
+        cls, vendor: str, api_base: str, api_key: str
+    ) -> Dict[str, Any]:
+        """获取厂商可用模型列表"""
+        try:
+            if not api_base.startswith(("http://", "https://")):
+                return {
+                    "success": False,
+                    "message": "API Base URL 格式错误",
+                    "models": [],
+                }
+
+            config = cls.VENDOR_CONFIGS.get(vendor, {})
+
+            # 对于有标准接口的厂商，尝试调用API获取
+            if vendor == "openai":
+                return await cls._fetch_openai_models(api_base, api_key)
+            elif vendor == "gemini":
+                return await cls._fetch_gemini_models(api_base, api_key)
+            elif vendor in ["groq"]:
+                return await cls._fetch_openai_compatible_models(
+                    vendor, api_base, api_key
+                )
+            else:
+                # 其他厂商使用内置列表
+                return {
+                    "success": True,
+                    "message": f"{vendor} 暂不支持自动获取模型列表",
+                    "models": cls._get_builtin_models(vendor),
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"获取模型列表失败: {str(e)}",
+                "models": [],
+            }
+
+    @classmethod
+    async def _fetch_openai_models(cls, api_base: str, api_key: str) -> Dict[str, Any]:
+        """获取 OpenAI 兼容格式的模型列表"""
+        try:
+            headers = {"Authorization": f"Bearer {api_key}"}
+            api_base_clean = api_base.rstrip("/")
+            if not api_base_clean.endswith("/v1"):
+                api_base_clean = f"{api_base_clean}/v1"
+
+            url = f"{api_base_clean}/models"
+
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=False
+            ) as client:
+                response = await client.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    models = []
+                    for model in data.get("data", []):
+                        model_id = model.get("id", "")
+                        # 过滤出对话模型
+                        if any(
+                            keyword in model_id.lower()
+                            for keyword in [
+                                "gpt",
+                                "claude",
+                                "qwen",
+                                "glm",
+                                "llama",
+                                "mistral",
+                                "gemini",
+                            ]
+                        ):
+                            models.append(
+                                {
+                                    "id": model_id,
+                                    "name": model_id,
+                                    "description": model.get("description", ""),
+                                }
+                            )
+
+                    return {
+                        "success": True,
+                        "message": f"成功获取 {len(models)} 个模型",
+                        "models": models,
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"API返回错误: {response.status_code}",
+                        "models": [],
+                    }
+
+        except Exception as e:
+            return {"success": False, "message": f"请求失败: {str(e)}", "models": []}
+
+    @classmethod
+    async def _fetch_gemini_models(cls, api_base: str, api_key: str) -> Dict[str, Any]:
+        """获取 Gemini 模型列表"""
+        try:
+            api_base_clean = api_base.rstrip("/")
+            url = f"{api_base_clean}/v1beta/models?key={api_key}"
+
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=False
+            ) as client:
+                response = await client.get(url)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    models = []
+                    for model in data.get("models", []):
+                        model_name = model.get("name", "").replace("models/", "")
+                        if "gemini" in model_name.lower():
+                            models.append(
+                                {
+                                    "id": model_name,
+                                    "name": model_name,
+                                    "description": model.get("description", ""),
+                                }
+                            )
+
+                    return {
+                        "success": True,
+                        "message": f"成功获取 {len(models)} 个模型",
+                        "models": models,
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"API返回错误: {response.status_code}",
+                        "models": [],
+                    }
+
+        except Exception as e:
+            return {"success": False, "message": f"请求失败: {str(e)}", "models": []}
+
+    @classmethod
+    async def _fetch_openai_compatible_models(
+        cls, vendor: str, api_base: str, api_key: str
+    ) -> Dict[str, Any]:
+        """获取 OpenAI 兼容格式的模型列表"""
+        return await cls._fetch_openai_models(api_base, api_key)
+
+    @classmethod
+    def _get_builtin_models(cls, vendor: str) -> List[Dict[str, Any]]:
+        """获取内置模型列表"""
+        vendor_models = {
+            "openai": [
+                {
+                    "id": "gpt-3.5-turbo",
+                    "name": "GPT-3.5 Turbo",
+                    "description": "高性价比通用模型",
+                },
+                {"id": "gpt-4", "name": "GPT-4", "description": "高级推理能力"},
+                {"id": "gpt-4o", "name": "GPT-4o", "description": "最新多模态模型"},
+                {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "轻量快速"},
+            ],
+            "qwen": [
+                {
+                    "id": "qwen-turbo",
+                    "name": "通义千问 Turbo",
+                    "description": "高性价比",
+                },
+                {"id": "qwen-plus", "name": "通义千问 Plus", "description": "增强版本"},
+                {"id": "qwen-max", "name": "通义千问 Max", "description": "最强性能"},
+            ],
+            "zhipu": [
+                {"id": "glm-4", "name": "GLM-4", "description": "智谱最强模型"},
+                {"id": "glm-4v", "name": "GLM-4V", "description": "多模态版本"},
+                {"id": "glm-3-turbo", "name": "GLM-3 Turbo", "description": "高性价比"},
+            ],
+            "spark": [
+                {"id": "spark-v3.1", "name": "星火 V3.1", "description": "最新版本"},
+                {"id": "spark-v3.5", "name": "星火 V3.5", "description": "增强版本"},
+            ],
+            "doubao": [
+                {
+                    "id": "Doubao-pro-32k",
+                    "name": "豆包 Pro 32K",
+                    "description": "32K上下文",
+                },
+                {
+                    "id": "Doubao-pro-128k",
+                    "name": "豆包 Pro 128K",
+                    "description": "128K上下文",
+                },
+            ],
+            "claude": [
+                {
+                    "id": "claude-sonnet-4-20250514",
+                    "name": "Claude Sonnet 4",
+                    "description": "平衡性能",
+                },
+                {
+                    "id": "claude-opus-4-20250514",
+                    "name": "Claude Opus 4",
+                    "description": "最强性能",
+                },
+                {
+                    "id": "claude-haiku-3-20250514",
+                    "name": "Claude Haiku 3",
+                    "description": "快速响应",
+                },
+            ],
+            "gemini": [
+                {
+                    "id": "gemini-1.5-pro",
+                    "name": "Gemini 1.5 Pro",
+                    "description": "高级版本",
+                },
+                {
+                    "id": "gemini-1.5-flash",
+                    "name": "Gemini 1.5 Flash",
+                    "description": "快速版本",
+                },
+                {"id": "gemini-pro", "name": "Gemini Pro", "description": "通用版本"},
+            ],
+            "mistral": [
+                {
+                    "id": "mistral-large",
+                    "name": "Mistral Large",
+                    "description": "最强版本",
+                },
+                {
+                    "id": "mistral-medium",
+                    "name": "Mistral Medium",
+                    "description": "中等版本",
+                },
+                {
+                    "id": "mistral-small",
+                    "name": "Mistral Small",
+                    "description": "轻量版本",
+                },
+            ],
+            "groq": [
+                {
+                    "id": "llama3-70b-8192",
+                    "name": "Llama 3 70B",
+                    "description": "Llama3 70B",
+                },
+                {
+                    "id": "llama3-8b-8192",
+                    "name": "Llama 3 8B",
+                    "description": "Llama3 8B",
+                },
+                {
+                    "id": "mixtral-8x7b-32768",
+                    "name": "Mixtral 8x7b",
+                    "description": "Mixtral",
+                },
+            ],
+            "ollama": [
+                {"id": "llama3", "name": "Llama 3", "description": "Meta Llama 3"},
+                {
+                    "id": "llama3.1",
+                    "name": "Llama 3.1",
+                    "description": "Meta Llama 3.1",
+                },
+                {"id": "qwen2", "name": "Qwen 2", "description": "通义千问2"},
+                {"id": "mistral", "name": "Mistral", "description": "Mistral 7B"},
+            ],
+            "localai": [
+                {"id": "llama-2-7b", "name": "Llama 2 7B", "description": "Llama 2"},
+                {"id": "mistral-7b", "name": "Mistral 7B", "description": "Mistral"},
+            ],
+            "lmstudio": [
+                {"id": "llama-3-8b", "name": "Llama 3 8B", "description": "Llama 3"},
+                {"id": "mistral-7b", "name": "Mistral 7B", "description": "Mistral"},
+            ],
+            "vllm": [
+                {"id": "llama-2-7b", "name": "Llama 2 7B", "description": "Llama 2"},
+                {"id": "qwen-14b", "name": "Qwen 14B", "description": "通义千问14B"},
+            ],
+        }
+
+        models = vendor_models.get(vendor, [])
+        return [
+            {"id": m["id"], "name": m["name"], "description": m["description"]}
+            for m in models
+        ]
+
     @classmethod
     async def sync_request(
-        cls,
-        vendor: str,
-        api_base: str,
-        api_key: str,
-        request_data: Dict[str, Any]
+        cls, vendor: str, api_base: str, api_key: str, request_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """同步请求转发"""
         config = cls.VENDOR_CONFIGS.get(vendor, {})
         headers = cls._build_headers(vendor, api_key, config)
-        
+
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
-        
+
         url = f"{api_base}{config.get('api_path', '/v1/chat/completions')}"
-        
+
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=mapped_request, headers=headers)
-            
+
             if response.status_code != 200:
-                raise Exception(f"API请求失败: {response.status_code} - {response.text}")
-            
+                raise Exception(
+                    f"API请求失败: {response.status_code} - {response.text}"
+                )
+
             response_data = response.json()
-            
+
             # 响应标准化为OpenAI格式
             return cls._standardize_response(vendor, response_data)
-    
+
     @classmethod
     async def stream_request(
-        cls,
-        vendor: str,
-        api_base: str,
-        api_key: str,
-        request_data: Dict[str, Any]
+        cls, vendor: str, api_base: str, api_key: str, request_data: Dict[str, Any]
     ) -> AsyncGenerator[str, None]:
         """流式请求转发"""
         config = cls.VENDOR_CONFIGS.get(vendor, {})
         headers = cls._build_headers(vendor, api_key, config)
-        
+
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
-        
+
         url = f"{api_base}{config.get('api_path', '/v1/chat/completions')}"
-        
+
         async with httpx.AsyncClient(timeout=300.0) as client:
-            async with client.stream("POST", url, json=mapped_request, headers=headers) as response:
+            async with client.stream(
+                "POST", url, json=mapped_request, headers=headers
+            ) as response:
                 if response.status_code != 200:
                     yield f"data: {json.dumps({'error': '请求失败'})}\n\n"
                     return
-                
+
                 async for chunk in response.aiter_lines():
                     if chunk:
                         # 转换为OpenAI SSE格式
                         standardized = cls._standardize_stream_chunk(vendor, chunk)
                         if standardized:
                             yield standardized
-    
+
     @classmethod
     def _build_headers(cls, vendor: str, api_key: str, config: Dict) -> Dict:
         """构建请求头"""
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
         auth_header = config.get("auth_header", "Authorization")
         auth_format = config.get("auth_format", "Bearer")
-        
+
         if auth_header == "Authorization":
             headers[auth_header] = f"{auth_format} {api_key}"
         else:
             headers[auth_header] = api_key
-        
+
         # 厂商特定请求头
         if vendor == "claude":
             headers["anthropic-version"] = "2023-06-01"
             headers["anthropic-dangerous-direct-browser-access"] = "true"
-        
+
         if vendor == "gemini":
             headers["Content-Type"] = "application/json"
-        
+
         return headers
-    
+
     @classmethod
-    def _build_test_request(cls, vendor: str) -> Dict:
+    def _build_test_request(cls, vendor: str, model_name: str = None) -> Dict:
         """构建测试请求"""
+        use_model_name = (
+            model_name
+            if model_name
+            else ("llama3.2" if vendor == "ollama" else "gpt-3.5-turbo")
+        )
+
         if vendor == "claude":
             return {
                 "model": "claude-sonnet-4-20250514",
                 "max_tokens": 10,
-                "messages": [{"role": "user", "content": "Hi"}]
+                "messages": [{"role": "user", "content": "Hi"}],
+            }
+        elif vendor == "ollama":
+            return {
+                "model": use_model_name,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "options": {"num_predict": 10},
             }
         else:
             return {
-                "model": "gpt-3.5-turbo",
+                "model": use_model_name,
                 "messages": [{"role": "user", "content": "Hi"}],
-                "max_tokens": 10
+                "max_tokens": 10,
             }
-    
+
     @classmethod
     def _map_params(cls, vendor: str, request_data: Dict) -> Dict:
         """参数映射 - 将OpenAI参数转换为目标厂商格式"""
         mapping = cls.PARAM_MAPPING.get(vendor, {})
         mapped = request_data.copy()
-        
+
         for openai_param, vendor_param in mapping.items():
             if openai_param in mapped and openai_param != vendor_param:
                 mapped[vendor_param] = mapped.pop(openai_param)
-        
+
         return mapped
-    
+
     @classmethod
     def _standardize_response(cls, vendor: str, response_data: Dict) -> Dict:
         """响应标准化 - 将厂商响应转换为OpenAI格式"""
@@ -241,56 +600,58 @@ class GatewayCore:
             "created": response_data.get("created", 0),
             "model": response_data.get("model", "unknown"),
             "choices": [],
-            "usage": {}
+            "usage": {},
         }
-        
+
         # 处理choices
         if "choices" in response_data:
             for choice in response_data["choices"]:
-                standardized["choices"].append({
-                    "index": choice.get("index", 0),
-                    "message": {
-                        "role": choice.get("message", {}).get("role", "assistant"),
-                        "content": choice.get("message", {}).get("content", "")
-                    },
-                    "finish_reason": choice.get("finish_reason", "stop")
-                })
-        
+                standardized["choices"].append(
+                    {
+                        "index": choice.get("index", 0),
+                        "message": {
+                            "role": choice.get("message", {}).get("role", "assistant"),
+                            "content": choice.get("message", {}).get("content", ""),
+                        },
+                        "finish_reason": choice.get("finish_reason", "stop"),
+                    }
+                )
+
         # 处理usage
         if "usage" in response_data:
             usage = response_data["usage"]
             standardized["usage"] = {
                 "prompt_tokens": usage.get("prompt_tokens", 0),
                 "completion_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0)
+                "total_tokens": usage.get("total_tokens", 0),
             }
-        
+
         return standardized
-    
+
     @classmethod
     def _standardize_stream_chunk(cls, vendor: str, chunk: str) -> str:
         """流式响应块标准化"""
         if not chunk.startswith("data:"):
             return None
-        
+
         data = chunk[5:].strip()
-        
+
         if data == "[DONE]":
             return "data: [DONE]\n\n"
-        
+
         try:
             data_obj = json.loads(data)
-            
+
             # 转换为OpenAI SSE格式
             standardized = {
                 "id": data_obj.get("id", f"chatcmpl-{id(data_obj)}"),
                 "object": "chat.completion.chunk",
                 "created": data_obj.get("created", 0),
                 "model": data_obj.get("model", "unknown"),
-                "choices": data_obj.get("choices", [])
+                "choices": data_obj.get("choices", []),
             }
-            
+
             return f"data: {json.dumps(standardized)}\n\n"
-            
+
         except json.JSONDecodeError:
             return None

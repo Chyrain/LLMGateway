@@ -8,7 +8,10 @@ import {
   Badge,
   Space,
   Button,
-  message
+  message,
+  List,
+  Typography,
+  Empty
 } from 'antd';
 import {
   DashboardOutlined,
@@ -69,6 +72,80 @@ const MainLayout = ({ children }) => {
       console.error('获取未读通知失败:', error);
     }
   };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await notificationApi.list({ limit: 10 });
+      if (res && Array.isArray(res)) {
+        setNotifications(res);
+      }
+    } catch (error) {
+      console.error('获取通知列表失败:', error);
+    }
+  };
+
+  const handleNotificationClick = async () => {
+    await fetchNotifications();
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationApi.markAllRead();
+      setUnreadCount(0);
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      message.success('已全部标为已读');
+    } catch (error) {
+      console.error('标记已读失败:', error);
+    }
+  };
+
+  const notificationMenuItems = [
+    {
+      key: 'header',
+      label: (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px' }}>
+          <span style={{ fontWeight: 500 }}>消息通知</span>
+          {unreadCount > 0 && (
+            <Button type="link" size="small" onClick={handleMarkAllRead}>
+              全部已读
+            </Button>
+          )}
+        </div>
+      ),
+      disabled: true
+    },
+    {
+      key: 'divider',
+      type: 'divider'
+    },
+    ...notifications.map((notif, index) => ({
+      key: `notif-${notif.id || index}`,
+      label: (
+        <div style={{ 
+          padding: '8px 12px', 
+          background: notif.is_read ? 'transparent' : 'rgba(24, 144, 255, 0.05)',
+          maxWidth: 280
+        }}>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 4 }}>
+            {notif.title}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {notif.content?.substring(0, 50)}
+            {notif.content?.length > 50 ? '...' : ''}
+          </Typography.Text>
+        </div>
+      )
+    })),
+    {
+      key: 'empty',
+      label: notifications.length === 0 ? (
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          <Typography.Text type="secondary">暂无通知</Typography.Text>
+        </div>
+      ) : null,
+      disabled: notifications.length === 0
+    }
+  ];
 
   const menuItems = [
     {
@@ -221,9 +298,18 @@ const MainLayout = ({ children }) => {
             </span>
           </Space>
           <Space size={20}>
-            <Badge count={unreadCount} size="small">
-              <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
-            </Badge>
+            <Dropdown
+              menu={{ items: notificationMenuItems }}
+              trigger={['click']}
+              placement="bottomRight"
+              onOpenChange={(open) => {
+                if (open) handleNotificationClick();
+              }}
+            >
+              <Badge count={unreadCount} size="small">
+                <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
+              </Badge>
+            </Dropdown>
             <Dropdown
               menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
               trigger={['click']}

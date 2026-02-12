@@ -1,4 +1,14 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, Boolean, JSON
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    Text,
+    Boolean,
+    JSON,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from datetime import datetime
@@ -19,9 +29,7 @@ else:
 # 创建引擎
 if DB_TYPE == "sqlite":
     engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        echo=False
+        DATABASE_URL, connect_args={"check_same_thread": False}, echo=False
     )
 else:
     engine = create_engine(DATABASE_URL, echo=False)
@@ -29,6 +37,7 @@ else:
 # 创建会话工厂
 session_factory = sessionmaker(bind=engine)
 SessionLocal = scoped_session(session_factory)
+
 
 def get_db():
     """获取数据库会话"""
@@ -38,14 +47,16 @@ def get_db():
     finally:
         db.close()
 
+
 def init_db():
     """初始化数据库表"""
     # 确保目录存在
     if DB_TYPE == "sqlite":
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
+
     # 创建所有表
     Base.metadata.create_all(bind=engine)
+
 
 def init_default_config():
     """初始化默认配置"""
@@ -55,29 +66,46 @@ def init_default_config():
         existing = db.query(SystemConfig).first()
         if not existing:
             default_configs = [
-                {"config_key": "gateway_port", "config_value": "8080", "config_desc": "网关服务端口"},
-                {"config_key": "switch_threshold", "config_value": "99", "config_desc": "自动切换阈值(%)"},
-                {"config_key": "sync_interval", "config_value": "10", "config_desc": "额度同步间隔(秒)"},
-                {"config_key": "log_retention", "config_value": "30", "config_desc": "日志保留天数"},
+                {
+                    "config_key": "gateway_port",
+                    "config_value": "8080",
+                    "config_desc": "网关服务端口",
+                },
+                {
+                    "config_key": "switch_threshold",
+                    "config_value": "99",
+                    "config_desc": "自动切换阈值(%)",
+                },
+                {
+                    "config_key": "sync_interval",
+                    "config_value": "10",
+                    "config_desc": "额度同步间隔(秒)",
+                },
+                {
+                    "config_key": "log_retention",
+                    "config_value": "30",
+                    "config_desc": "日志保留天数",
+                },
             ]
-            
+
             for config in default_configs:
                 db.add(SystemConfig(**config))
             db.commit()
-            
+
         # 初始化默认管理员通知
         existing_notif = db.query(Notification).first()
         if not existing_notif:
             welcome_notif = Notification(
                 title="欢迎使用灵模网关",
-                message="系统已成功部署，您可以开始配置模型了。点击模型配置添加您的第一个模型。",
+                content="系统已成功部署，您可以开始配置模型了。点击模型配置添加您的第一个模型。",
                 type="info",
-                is_read=False
+                is_read=False,
             )
             db.add(welcome_notif)
             db.commit()
     finally:
         db.close()
+
 
 # 导入所有模型，确保它们被注册
 from models.model_config import ModelConfig

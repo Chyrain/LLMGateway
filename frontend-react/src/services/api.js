@@ -12,9 +12,13 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.error('获取token失败:', e);
     }
     return config;
   },
@@ -25,7 +29,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => response.data,
   error => {
-    const msg = error.response?.data?.msg || error.response?.data?.detail || '请求失败';
+    console.error('API请求错误:', error);
+    const msg = error.response?.data?.msg || error.response?.data?.detail || error.message || '请求失败';
     message.error(msg);
     return Promise.reject(error);
   }
@@ -56,13 +61,15 @@ export const notificationApi = {
 
 // 模型配置相关
 export const modelApi = {
-  list: () => api.get('/models'),
+  list: (params) => api.get('/models', { params }),
+  get: (id) => api.get(`/models/${id}`),
   add: (data) => api.post('/models', data),
   update: (id, data) => api.put(`/models/${id}`, data),
   delete: (id) => api.delete(`/models/${id}`),
   test: (id) => api.post(`/models/${id}/test`),
   enable: (id) => api.post(`/models/${id}/enable`),
-  disable: (id) => api.post(`/models/${id}/disable`)
+  disable: (id) => api.post(`/models/${id}/disable`),
+  fetchAvailable: (data) => api.post('/models/fetch-available', data)
 };
 
 // 额度统计相关

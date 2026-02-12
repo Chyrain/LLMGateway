@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Table, Card, Button, Tag, Space, Input, Select, Modal, Form,
-  InputNumber, Switch, message, Popconfirm, Tooltip
+  InputNumber, Switch, message, Popconfirm, Tooltip, Spin, Alert
 } from 'antd';
 import {
   PlusOutlined, ApiOutlined, EditOutlined,
   DeleteOutlined, SearchOutlined, CheckCircleFilled,
-  CloseCircleFilled
+  CloseCircleFilled, CloudDownloadOutlined
 } from '@ant-design/icons';
 import { modelApi } from '../services/api';
 
@@ -108,10 +108,27 @@ const ModelConfig = () => {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({ vendor: null, status: null });
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+  const [editingRecord, setEditingRecord] = useState(null);
 
   useEffect(() => {
     fetchData();
   }, [filters]);
+
+  // 监听编辑记录变化，设置表单值
+  useEffect(() => {
+    if (editingRecord && modalVisible) {
+      console.log('useEffect 设置表单值:', editingRecord);
+      form.setFieldsValue(editingRecord);
+      // 验证设置后的值
+      setTimeout(() => {
+        const currentValues = form.getFieldsValue();
+        console.log('useEffect 设置后当前值:', currentValues);
+      }, 50);
+    }
+  }, [editingRecord, modalVisible]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -137,6 +154,8 @@ const ModelConfig = () => {
   // 厂商选择变化时自动填充默认 API Base
   const handleVendorChange = (vendor) => {
     setSelectedVendor(vendor);
+    setAvailableModels([]);
+    setFetchError(null);
     const config = VENDOR_CONFIGS[vendor];
     
     if (config && modalType === 'add') {
@@ -151,15 +170,89 @@ const ModelConfig = () => {
   const handleAdd = () => {
     setModalType('add');
     setSelectedVendor(null);
+    setAvailableModels([]);
+    setFetchError(null);
+    setEditingRecord(null);
     form.resetFields();
     setModalVisible(true);
+    // 设置默认值
+    setEditingRecord({ priority: 100 });
   };
 
-  const handleEdit = (record) => {
+  const handleFetchModels = async () => {
+    const values = form.getFieldsValue(['vendor', 'api_key', 'api_base']);
+    
+    if (!values.vendor) {
+      message.error('请先选择厂商');
+      return;
+    }
+    
+    const needApiKey = VENDOR_CONFIGS[values.vendor]?.needApiKey !== false;
+    if (needApiKey && !values.api_key) {
+      message.error('请先填写 API Key');
+      return;
+    }
+
+    setFetchingModels(true);
+    setFetchError(null);
+    
+    try {
+      const response = await modelApi.fetchAvailable({
+        vendor: values.vendor,
+        api_key: values.api_key,
+        api_base: values.api_base
+      });
+      
+      if (response.code === 200) {
+        setAvailableModels(response.data || []);
+        if (response.data && response.data.length > 0) {
+          message.success(`成功获取 ${response.data.length} 个模型`);
+        } else {
+          message.warning('未获取到模型列表');
+        }
+      } else {
+        setFetchError(response.msg || '获取模型列表失败');
+        message.error(response.msg || '获取模型列表失败');
+      }
+    } catch (error) {
+      console.error('获取模型失败:', error);
+      setFetchError('请求失败，请检查网络或API配置');
+      message.error('获取模型列表失败');
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
+  const handleModelSelect = (modelId) => {
+    form.setFieldsValue({ model_name: modelId });
+  };
+
+  const handleEdit = async (record) => {
     setModalType('edit');
     setSelectedVendor(record.vendor);
-    form.setFieldsValue(record);
+    setAvailableModels([]);
+    setFetchError(null);
+    setEditingRecord(null);
+    
+    // 先获取数据
+    let formData = record;
+    try {
+      const response = await modelApi.get(record.id);
+      if (response.code === 200 && response.data) {
+        formData = response.data;
+      }
+    } catch (error) {
+      console.error('获取模型详情失败:', error);
+    }
+    
+    console.log('准备编辑的数据:', formData);
+    
+    // 先重置表单，然后打开模态框
+    form.resetFields();
     setModalVisible(true);
+    
+    // 设置编辑记录，触发 useEffect
+    setEditingRecord(formData);
   };
 
   const handleDelete = async (id) => {
@@ -197,15 +290,34 @@ const ModelConfig = () => {
 
   const handleSave = async () => {
     try {
-      const values = await form.validateFields();
+      await form.validateFields();
+      
+      // 手动获取所有字段值
+      const values = form.getFieldsValue(true);
+      console.log('表单原始值:', values);
+      
+      // 特别处理 priority 字段
+      const priorityValue = form.getFieldValue('priority');
+      console.log('Priority 字段值:', priorityValue, '类型:', typeof priorityValue);
+      
+      // 确保 priority 是数字
+      const finalValues = {
+        ...values,
+        priority: Number(priorityValue) || 100
+      };
+      
+      console.log('最终提交的值:', finalValues);
+      console.log('最终 priority:', finalValues.priority);
+      
       if (modalType === 'add') {
-        await modelApi.add(values);
+        await modelApi.add(finalValues);
         message.success('添加成功');
       } else {
-        await modelApi.update(values.id, values);
+        await modelApi.update(finalValues.id, finalValues);
         message.success('更新成功');
       }
       setModalVisible(false);
+      setEditingRecord(null);
       fetchData();
     } catch (error) {
       console.error('保存失败:', error);
@@ -337,8 +449,12 @@ const ModelConfig = () => {
         title={modalType === 'add' ? '添加模型' : '编辑模型'}
         open={modalVisible}
         onOk={handleSave}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingRecord(null);
+        }}
         width={650}
+        destroyOnClose={true}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="id" hidden>
@@ -357,12 +473,60 @@ const ModelConfig = () => {
             />
           </Form.Item>
           
+          <Form.Item label="获取可用模型" style={{ marginBottom: 8 }}>
+            <Button 
+              type="default" 
+              icon={<CloudDownloadOutlined />}
+              onClick={handleFetchModels}
+              loading={fetchingModels}
+              disabled={!selectedVendor}
+              style={{ width: '100%' }}
+            >
+              {fetchingModels ? '获取中...' : '获取可用模型列表'}
+            </Button>
+          </Form.Item>
+
+          {fetchError && (
+            <Alert
+              message={fetchError}
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {availableModels.length > 0 && (
+            <Form.Item label="选择模型" style={{ marginBottom: 16 }}>
+              <Select
+                placeholder="点击选择模型"
+                style={{ width: '100%' }}
+                onChange={handleModelSelect}
+                optionLabelProp="label"
+              >
+                {availableModels.map(model => (
+                  <Select.Option 
+                    key={model.id} 
+                    value={model.id}
+                    label={model.name || model.id}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 500 }}>{model.name || model.id}</span>
+                      {model.description && (
+                        <span style={{ fontSize: 12, color: '#999' }}>{model.description}</span>
+                      )}
+                    </div>
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+          
           <Form.Item
             name="model_name"
             label="模型名称"
             rules={[{ required: true, message: '请输入模型名称' }]}
           >
-            <Input placeholder="请输入模型名称" />
+            <Input placeholder="请输入或选择模型名称" />
           </Form.Item>
           
           <Form.Item
@@ -390,12 +554,21 @@ const ModelConfig = () => {
             />
           </Form.Item>
           
-          <Form.Item name="priority" label="优先级" initialValue={100}>
-            <InputNumber min={1} max={999} style={{ width: '100%' }} />
-            <span className="form-tip" style={{ marginLeft: 8, color: '#999' }}>
-              数字越小优先级越高
-            </span>
+          <Form.Item 
+            name="priority" 
+            label="优先级"
+          >
+            <Input 
+              type="number" 
+              min={1} 
+              max={999} 
+              style={{ width: '100%' }} 
+              placeholder="请输入优先级"
+            />
           </Form.Item>
+          <div className="form-tip" style={{ marginTop: -20, marginBottom: 16, color: '#999', fontSize: 12 }}>
+            数字越小优先级越高
+          </div>
         </Form>
       </Modal>
     </div>
