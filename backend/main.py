@@ -490,17 +490,21 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
             .all()
         )
 
+        # 如果没有启用任何模型，返回空列表
+        if not models:
+            return {"object": "list", "data": []}
+
         # 转换为 OpenAI 格式
         models_data = []
 
-        # 添加自动切换选项
+        # 只有启用了模型才添加 auto 选项
         models_data.append(
             {
                 "id": "auto",
                 "object": "model",
                 "created": 0,
                 "owned_by": "gateway",
-                "description": "自动根据优先级和额度余量切换模型",
+                "description": "自动根据优先级切换模型",
                 "capabilities": {"auto_switch": True, "priority_based": True},
             }
         )
@@ -526,106 +530,85 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
 async def chat_completions(
     request: ChatCompletionRequest, authorization: Optional[str] = Header(None)
 ):
-    """OpenAI兼容的Chat Completions接口"""
+    """OpenAI兼容的Chat Completions接口，支持自动切换模型"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="缺少有效的API Key")
 
     gateway_api_key = authorization.replace("Bearer ", "")
+    requested_model = request.model
+    is_auto_mode = (
+        requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model
+    )
 
-    # 获取模型配置 - 根据请求的 model 名称查找
+    # 获取所有可用的模型（按优先级排序）
     db = SessionLocal()
     try:
-        requested_model = request.model
+        available_models = (
+            db.query(ModelConfig)
+            .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
+            .order_by(ModelConfig.priority)
+            .all()
+        )
 
-        # 支持 "auto" 模式或 model 为空
-        if requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model:
-            # 自动模式：选择优先级最高且已连通的模型
-            current_model = (
-                db.query(ModelConfig)
-                .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
-                .order_by(ModelConfig.priority)
-                .first()
-            )
-            if current_model:
-                print(
-                    f"[AUTO] 自动模式，使用模型: {current_model.vendor} - {current_model.model_name}"
-                )
-            else:
-                raise HTTPException(status_code=503, detail="无可用模型（自动模式）")
+        if not available_models:
+            raise HTTPException(status_code=503, detail="无可用模型，请先配置模型")
+
+        # 如果是 auto 模式，尝试所有可用模型
+        # 如果指定了模型，优先试指定的模型，然后尝试其他可用模型
+        if is_auto_mode:
+            models_to_try = available_models
         else:
-            # 尝试根据请求的 model 名称查找
-            current_model = (
-                db.query(ModelConfig)
-                .filter(
-                    ModelConfig.status == 1,
-                    ModelConfig.connect_status == 1,
-                    ModelConfig.model_name == requested_model,
-                )
-                .first()
+            # 找到指定模型的位置，将其移到前面
+            target_model = next(
+                (m for m in available_models if m.model_name == requested_model), None
             )
+            if target_model:
+                models_to_try = [target_model] + [
+                    m for m in available_models if m.model_name != requested_model
+                ]
+            else:
+                models_to_try = available_models
 
-            # 如果没找到指定模型，自动切换到优先级最高的可用模型
-            if not current_model:
-                current_model = (
-                    db.query(ModelConfig)
-                    .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
-                    .order_by(ModelConfig.priority)
-                    .first()
-                )
-                if current_model:
-                    print(
-                        f"[WARNING] 未找到模型 '{requested_model}'，自动切换到: {current_model.vendor} - {current_model.model_name}"
+        last_error = None
+        successful_model = None
+        response = None
+
+        for model in models_to_try:
+            try:
+                print(f"[INFO] 尝试模型: {model.vendor} - {model.model_name}")
+
+                request_data = {
+                    "model": model.model_name,
+                    "messages": [m.model_dump() for m in request.messages],
+                    "stream": request.stream,
+                }
+
+                if request.temperature is not None:
+                    request_data["temperature"] = request.temperature
+                if request.max_tokens is not None:
+                    request_data["max_tokens"] = request.max_tokens
+
+                if request.stream:
+                    return StreamingResponse(
+                        GatewayCore.stream_request(
+                            model.vendor, model.api_base, model.api_key, request_data
+                        ),
+                        media_type="text/event-stream",
                     )
                 else:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"模型 '{requested_model}' 不可用，且无备用模型",
+                    response = await GatewayCore.sync_request(
+                        model.vendor, model.api_base, model.api_key, request_data
                     )
-    finally:
-        db.close()
 
-    if not current_model:
-        raise HTTPException(status_code=503, detail="无可用模型，请先配置模型")
-
-    request_data = {
-        "model": current_model.model_name,
-        "messages": [m.model_dump() for m in request.messages],
-        "stream": request.stream,
-    }
-
-    if request.temperature is not None:
-        request_data["temperature"] = request.temperature
-    if request.max_tokens is not None:
-        request_data["max_tokens"] = request.max_tokens
-
-    try:
-        if request.stream:
-            return StreamingResponse(
-                GatewayCore.stream_request(
-                    current_model.vendor,
-                    current_model.api_base,
-                    current_model.api_key,
-                    request_data,
-                ),
-                media_type="text/event-stream",
-            )
-        else:
-            response = await GatewayCore.sync_request(
-                current_model.vendor,
-                current_model.api_base,
-                current_model.api_key,
-                request_data,
-            )
-
-            # 记录日志
-            db = SessionLocal()
-            try:
+                # 成功：记录日志并返回
+                successful_model = model
                 log = OperationLog(
                     log_type=1,
-                    model_id=current_model.id,
+                    model_id=model.id,
                     log_content=json.dumps(
                         {
-                            "model": request.model,
+                            "model": requested_model or "auto",
+                            "actual_model": model.model_name,
                             "status": "success",
                             "usage": response.get("usage", {}),
                         }
@@ -634,27 +617,47 @@ async def chat_completions(
                 )
                 db.add(log)
                 db.commit()
-            finally:
-                db.close()
 
-            return response
+                print(f"[SUCCESS] 使用模型: {model.vendor} - {model.model_name}")
+                return response
 
-    except Exception as e:
-        # 记录错误日志
-        db = SessionLocal()
-        try:
-            log = OperationLog(
-                log_type=3,
-                model_id=current_model.id,
-                log_content=json.dumps({"error": str(e)}),
-                status=0,
-            )
-            db.add(log)
-            db.commit()
-        finally:
-            db.close()
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+                print(
+                    f"[ERROR] 模型 {model.vendor} - {model.model_name} 失败: {error_msg}"
+                )
 
-        raise HTTPException(status_code=500, detail=f"请求失败: {str(e)}")
+                # 记录失败日志
+                log = OperationLog(
+                    log_type=3,
+                    model_id=model.id,
+                    log_content=json.dumps(
+                        {
+                            "model": requested_model or "auto",
+                            "attempted_model": model.model_name,
+                            "error": error_msg,
+                        }
+                    ),
+                    status=0,
+                )
+                db.add(log)
+                db.commit()
+
+                # 如果不是 auto 模式，且找到了指定模型，失败后尝试其他模型
+                # 如果是 auto 模式，继续尝试下一个
+                continue
+
+        # 所有模型都失败了
+        error_detail = (
+            last_error.detail if hasattr(last_error, "detail") else str(last_error)
+        )
+        raise HTTPException(
+            status_code=500, detail=f"所有可用模型均失败: {error_detail}"
+        )
+
+    finally:
+        db.close()
 
 
 # ==================== 工具函数 ====================
