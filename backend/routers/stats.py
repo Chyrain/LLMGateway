@@ -259,6 +259,25 @@ async def get_quota_overview(db: Session = Depends(get_db)):
     used = sum(q.used_quota for q in quota_stats)
     remain = total - used
 
+    models_data = []
+    for qs in quota_stats:
+        model = db.query(ModelConfig).filter(ModelConfig.id == qs.model_id).first()
+        models_data.append(
+            {
+                "model_id": qs.model_id,
+                "model_name": model.model_name if model else f"模型_{qs.model_id}",
+                "vendor": model.vendor if model else "未知",
+                "total": qs.total_quota,
+                "used": qs.used_quota,
+                "remain": qs.remain_quota,
+                "usage_rate": round(qs.used_ratio, 2),
+                "sync_type": qs.sync_type,
+                "last_sync_time": qs.update_time.strftime("%Y-%m-%d %H:%M:%S")
+                if qs.update_time
+                else None,
+            }
+        )
+
     return {
         "code": 200,
         "msg": "success",
@@ -266,16 +285,7 @@ async def get_quota_overview(db: Session = Depends(get_db)):
             "total": total,
             "used": used,
             "remain": remain,
-            "usageRate": round(used / total * 100, 2) if total > 0 else 0,
-            "models": [
-                {
-                    "model_id": qs.model_id,
-                    "total": qs.total_quota,
-                    "used": qs.used_quota,
-                    "remain": qs.remain_quota,
-                    "usageRate": round(qs.used_ratio, 2),
-                }
-                for qs in quota_stats
-            ],
+            "usage_rate": round(used / total * 100, 2) if total > 0 else 0,
+            "models": models_data,
         },
     }

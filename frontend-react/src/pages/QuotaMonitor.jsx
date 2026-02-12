@@ -1,28 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Progress, Space, Statistic, Row, Col, Modal, Form, InputNumber, message } from 'antd';
-import { SyncOutlined, EditOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Progress, Space, Statistic, Row, Col, Modal, Form, InputNumber, message, DatePicker, List } from 'antd';
+import { SyncOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
-import { quotaApi, configApi } from '../services/api';
+import { quotaApi, configApi, statsApi } from '../services/api';
+import dayjs from 'dayjs';
+
+const { RangePicker } = DatePicker;
 
 const QuotaMonitor = () => {
   const [quotaList, setQuotaList] = useState([]);
   const [historyData, setHistoryData] = useState([]);
+  const [usageTrend, setUsageTrend] = useState([]);
+  const [modelRanking, setModelRanking] = useState([]);
   const [switchThreshold, setSwitchThreshold] = useState(99);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
   const [editingRow, setEditingRow] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState([dayjs().subtract(30, 'days'), dayjs()]);
 
   useEffect(() => {
     fetchQuotaData();
     fetchHistoryData();
+    fetchUsageTrend();
+    fetchModelRanking();
     fetchSwitchThreshold();
-  }, []);
+  }, [dateRange]);
 
   const fetchQuotaData = async () => {
     try {
-      const response = await quotaApi.stat();
+      const response = await statsApi.quota();
       if (response.code === 200) {
-        setQuotaList(response.data || []);
+        setQuotaList(response.data?.models || []);
       }
     } catch (error) {
       console.error('获取额度数据失败:', error);
@@ -40,6 +49,30 @@ const QuotaMonitor = () => {
     }
   };
 
+  const fetchUsageTrend = async () => {
+    try {
+      const [start, end] = dateRange;
+      const days = end.diff(start, 'day') + 1;
+      const response = await statsApi.trends({ days });
+      if (response.code === 200) {
+        setUsageTrend(response.data?.trend || []);
+      }
+    } catch (error) {
+      console.error('获取使用趋势失败:', error);
+    }
+  };
+
+  const fetchModelRanking = async () => {
+    try {
+      const response = await statsApi.models();
+      if (response.code === 200) {
+        setModelRanking(response.data?.rankings || []);
+      }
+    } catch (error) {
+      console.error('获取模型排行失败:', error);
+    }
+  };
+
   const fetchSwitchThreshold = async () => {
     try {
       const response = await configApi.get('switch_threshold');
@@ -53,19 +86,41 @@ const QuotaMonitor = () => {
 
   const handleSync = async (modelId) => {
     try {
+      setLoading(true);
       const response = await quotaApi.sync(modelId);
-      message.success('额度同步成功');
-      fetchQuotaData();
+      if (response.code === 200) {
+        message.success('额度同步成功');
+        fetchQuotaData();
+      } else {
+        message.error(response.msg || '额度同步失败');
+      }
     } catch (error) {
       message.error('额度同步失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      setLoading(true);
+      for (const item of quotaList) {
+        await quotaApi.sync(item.model_id);
+      }
+      message.success('全部额度同步完成');
+      fetchQuotaData();
+    } catch (error) {
+      message.error('同步失败');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleEdit = (record) => {
     setEditingRow(record);
     editForm.setFieldsValue({
-      total_quota: record.total_quota,
-      used_quota: record.used_quota
+      total_quota: record.total,
+      used_quota: record.used
     });
     setEditModalVisible(true);
   };
@@ -82,76 +137,109 @@ const QuotaMonitor = () => {
     }
   };
 
-  const total = quotaList.reduce((sum, item) => sum + (item.total_quota || 0), 0);
-  const used = quotaList.reduce((sum, item) => sum + (item.used_quota || 0), 0);
+  const total = quotaList.reduce((sum, item) => sum + (item.total || 0), 0);
+  const used = quotaList.reduce((sum, item) => sum + (item.used || 0), 0);
   const remain = total - used;
   const usageRate = total > 0 ? ((used / total) * 100).toFixed(1) : 0;
-  const alertCount = quotaList.filter(item => item.used_ratio >= switchThreshold).length;
 
-  const historyChartOption = {
+  const sufficientCount = quotaList.filter(item => (item.usage_rate || 0) < 70).length;
+  const warningCount = quotaList.filter(item => (item.usage_rate || 0) >= 70 && (item.usage_rate || 0) < 90).length;
+  const alertCount = quotaList.filter(item => (item.usage_rate || 0) >= 90).length;
+
+  const usageChartOption = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['已用额度', '剩余额度'] },
+    legend: { data: ['请求次数'] },
     xAxis: {
       type: 'category',
-      data: historyData.map(item => item.date)
+      data: usageTrend.map(item => item.date)
     },
     yAxis: { type: 'value' },
     series: [
       {
-        name: '已用额度',
-        type: 'bar',
-        stack: 'total',
-        data: historyData.map(item => item.used_quota),
-        itemStyle: { color: '#f5576c' }
-      },
-      {
-        name: '剩余额度',
-        type: 'bar',
-        stack: 'total',
-        data: historyData.map(item => item.remain_quota),
-        itemStyle: { color: '#67C23A' }
+        name: '请求次数',
+        type: 'line',
+        smooth: true,
+        data: usageTrend.map(item => item.requests),
+        itemStyle: { color: '#1890ff' },
+        areaStyle: { color: 'rgba(24, 144, 255, 0.1)' }
       }
     ]
   };
 
+  const rankingChartOption = {
+    tooltip: { trigger: 'item' },
+    legend: { orient: 'vertical', left: 'left' },
+    series: [
+      {
+        name: '模型使用',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 16 } },
+        data: modelRanking.slice(0, 5).map(item => ({
+          value: item.requests,
+          name: item.model
+        }))
+      }
+    ]
+  };
+
+  const statusColors = {
+    success: { bg: '#f6ffed', border: '#52c41a', text: '#135200' },
+    warning: { bg: '#fffbe6', border: '#faad14', text: '#ad6800' },
+    danger: { bg: '#fff2f0', border: '#ff4d4f', text: '#cf1322' }
+  };
+
   const columns = [
     {
-      title: '模型ID',
-      dataIndex: 'model_id'
-    },
-    {
-      title: '总额度',
-      dataIndex: 'total_quota',
-      render: (val) => `${(val / 1000000).toFixed(2)}M`
-    },
-    {
-      title: '已用额度',
-      dataIndex: 'used_quota',
-      render: (val) => `${(val / 1000000).toFixed(2)}M`
-    },
-    {
-      title: '剩余额度',
-      dataIndex: 'remain_quota',
-      render: (val) => `${(val / 1000000).toFixed(2)}M`
-    },
-    {
-      title: '使用率',
-      dataIndex: 'used_ratio',
-      render: (val, record) => (
-        <Progress
-          percent={val}
-          size="small"
-          status={val >= 90 ? 'exception' : val >= 70 ? 'warning' : 'success'}
-        />
+      title: '模型',
+      key: 'model',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color="blue">{record.vendor}</Tag>
+          <span style={{ fontWeight: 500 }}>{record.model_name}</span>
+        </Space>
       )
     },
     {
-      title: '同步类型',
-      dataIndex: 'sync_type'
+      title: '总额度',
+      dataIndex: 'total',
+      render: (val) => val >= 1000000 ? `${(val / 1000000).toFixed(2)}M` : val?.toLocaleString() || '0'
     },
     {
-      title: '最后同步',
-      dataIndex: 'last_sync_time'
+      title: '已用额度',
+      dataIndex: 'used',
+      render: (val) => val >= 1000000 ? `${(val / 1000000).toFixed(2)}M` : val?.toLocaleString() || '0'
+    },
+    {
+      title: '剩余额度',
+      dataIndex: 'remain',
+      render: (val) => val >= 1000000 ? `${(val / 1000000).toFixed(2)}M` : val?.toLocaleString() || '0'
+    },
+    {
+      title: '使用率',
+      dataIndex: 'usage_rate',
+      render: (val) => {
+        const status = val >= 90 ? 'exception' : val >= 70 ? 'warning' : 'success';
+        const color = status === 'exception' ? '#cf1322' : status === 'warning' ? '#d46b08' : '#389e0d';
+        return (
+          <div style={{ minWidth: 120 }}>
+            <Progress
+              percent={val}
+              size="small"
+              status={status}
+              strokeColor={color}
+              format={(p) => `${p?.toFixed(1)}%`}
+            />
+          </div>
+        );
+      }
+    },
+    {
+      title: '同步时间',
+      dataIndex: 'last_sync_time',
+      render: (val) => val || '未同步'
     },
     {
       title: '操作',
@@ -159,8 +247,9 @@ const QuotaMonitor = () => {
         <Space>
           <Button
             type="text"
-            icon={<SyncOutlined />}
+            icon={<SyncOutlined spin={loading} />}
             onClick={() => handleSync(record.model_id)}
+            loading={loading}
           >
             同步
           </Button>
@@ -181,56 +270,134 @@ const QuotaMonitor = () => {
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col span={6}>
           <Card>
-            <Statistic title="总额度" value={total / 1000000} suffix="M Tokens" />
+            <Statistic title="总额度" value={total / 1000000} suffix="M Tokens" precision={2} />
           </Card>
         </Col>
         <Col span={6}>
           <Card>
-            <Statistic title="已用额度" value={used / 1000000} suffix="M" />
+            <Statistic title="已用额度" value={used / 1000000} suffix="M" precision={2} valueStyle={{ color: '#cf1322' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card>
-            <Statistic title="剩余额度" value={remain / 1000000} suffix="M" />
+            <Statistic title="剩余额度" value={remain / 1000000} suffix="M" precision={2} valueStyle={{ color: '#389e0d' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card>
             <div style={{ marginBottom: 8 }}>总体使用率</div>
-            <Progress percent={usageRate} size="small" />
+            <Progress
+              percent={usageRate}
+              size="small"
+              status={usageRate >= 90 ? 'exception' : usageRate >= 70 ? 'warning' : 'success'}
+              strokeColor={usageRate >= 90 ? '#cf1322' : usageRate >= 70 ? '#faad14' : '#52c41a'}
+              format={(p) => `${p}%`}
+            />
           </Card>
         </Col>
       </Row>
 
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col span={16}>
-          <Card title="近30天额度使用趋势">
-            <ReactECharts option={historyChartOption} style={{ height: 300 }} />
+          <Card
+            title="📈 使用趋势"
+            extra={
+              <Space>
+                <RangePicker
+                  value={dateRange}
+                  onChange={(dates) => dates && setDateRange(dates)}
+                />
+                <Button icon={<ReloadOutlined />} onClick={() => fetchUsageTrend()}>刷新</Button>
+              </Space>
+            }
+          >
+            <ReactECharts option={usageChartOption} style={{ height: 280 }} />
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="额度状态分布">
-            <div style={{ textAlign: 'center', padding: 20 }}>
-              <Tag color="success" style={{ margin: 4 }}>
-                充足: {quotaList.filter(item => item.used_ratio < 70).length}
-              </Tag>
-              <Tag color="warning" style={{ margin: 4 }}>
-                预警: {quotaList.filter(item => item.used_ratio >= 70 && item.used_ratio < 90).length}
-              </Tag>
-              <Tag color="danger" style={{ margin: 4 }}>
-                告警: {quotaList.filter(item => item.used_ratio >= 90).length}
-              </Tag>
+          <Card title="🚨 额度状态分布">
+            <div style={{ padding: '10px 0' }}>
+              <div style={{
+                marginBottom: 16,
+                padding: 16,
+                borderRadius: 8,
+                background: statusColors.success.bg,
+                border: `1px solid ${statusColors.success.border}`,
+                color: statusColors.success.text
+              }}>
+                <div style={{ fontSize: 24, fontWeight: 600 }}>{sufficientCount}</div>
+                <div>充足 (使用率 &lt; 70%)</div>
+              </div>
+              <div style={{
+                marginBottom: 16,
+                padding: 16,
+                borderRadius: 8,
+                background: statusColors.warning.bg,
+                border: `1px solid ${statusColors.warning.border}`,
+                color: statusColors.warning.text
+              }}>
+                <div style={{ fontSize: 24, fontWeight: 600 }}>{warningCount}</div>
+                <div>预警 (70% ≤ 使用率 &lt; 90%)</div>
+              </div>
+              <div style={{
+                padding: 16,
+                borderRadius: 8,
+                background: statusColors.danger.bg,
+                border: `1px solid ${statusColors.danger.border}`,
+                color: statusColors.danger.text
+              }}>
+                <div style={{ fontSize: 24, fontWeight: 600 }}>{alertCount}</div>
+                <div>告警 (使用率 ≥ 90%)</div>
+              </div>
             </div>
           </Card>
         </Col>
       </Row>
 
-      <Card title="模型额度列表">
+      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
+        <Col span={12}>
+          <Card title="🏆 模型使用排行 (Top 5)">
+            <List
+              size="small"
+              dataSource={modelRanking.slice(0, 5)}
+              renderItem={(item, index) => (
+                <List.Item>
+                  <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <Space>
+                      <Tag color={index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : 'default'}>{index + 1}</Tag>
+                      <span>{item.model}</span>
+                    </Space>
+                    <Space>
+                      <span style={{ color: '#1890ff' }}>{item.requests?.toLocaleString()}</span>
+                      <span style={{ color: '#999' }}>({item.percentage}%)</span>
+                    </Space>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card title="📊 模型使用占比">
+            <ReactECharts option={rankingChartOption} style={{ height: 250 }} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card
+        title="📋 模型额度列表"
+        extra={
+          <Button type="primary" icon={<SyncOutlined />} onClick={handleSyncAll} loading={loading}>
+            全部同步
+          </Button>
+        }
+      >
         <Table
           dataSource={quotaList}
           columns={columns}
           rowKey="model_id"
           pagination={{ pageSize: 10 }}
+          loading={loading}
         />
       </Card>
 
@@ -241,11 +408,11 @@ const QuotaMonitor = () => {
         onCancel={() => setEditModalVisible(false)}
       >
         <Form form={editForm} layout="vertical">
-          <Form.Item name="total_quota" label="总额度">
-            <InputNumber min={0} style={{ width: '100%' }} />
+          <Form.Item name="total_quota" label="总额度 (Tokens)">
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="请输入总额度" />
           </Form.Item>
-          <Form.Item name="used_quota" label="已用额度">
-            <InputNumber min={0} style={{ width: '100%' }} />
+          <Form.Item name="used_quota" label="已用额度 (Tokens)">
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="请输入已用额度" />
           </Form.Item>
         </Form>
       </Modal>
