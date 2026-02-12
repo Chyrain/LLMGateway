@@ -732,10 +732,18 @@ class GatewayCore:
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
 
-        # 清理 api_base，避免双斜杠
+        # 构建 URL，避免路径重复
         api_base_clean = api_base.rstrip("/")
         api_path = config.get("api_path", "/v1/chat/completions")
-        url = f"{api_base_clean}{api_path}"
+
+        # 检查 api_base 是否已经包含 api_path 的部分路径
+        # 例如 api_base="https://example.com/v1" 且 api_path="/v1/chat/completions"
+        url = api_base_clean
+        if api_path.startswith("/v1") and api_base_clean.endswith("/v1"):
+            # 去掉重复的 /v1
+            url = f"{api_base_clean}{api_path[3:]}"
+        else:
+            url = f"{api_base_clean}{api_path}"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=mapped_request, headers=headers)
@@ -761,10 +769,16 @@ class GatewayCore:
         # 参数映射
         mapped_request = cls._map_params(vendor, request_data)
 
-        # 清理 api_base，避免双斜杠
+        # 构建 URL，避免路径重复
         api_base_clean = api_base.rstrip("/")
         api_path = config.get("api_path", "/v1/chat/completions")
-        url = f"{api_base_clean}{api_path}"
+
+        # 检查 api_base 是否已经包含 api_path 的部分路径
+        if api_path.startswith("/v1") and api_base_clean.endswith("/v1"):
+            # 去掉重复的 /v1
+            url = f"{api_base_clean}{api_path[3:]}"
+        else:
+            url = f"{api_base_clean}{api_path}"
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream(
