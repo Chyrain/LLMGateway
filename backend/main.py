@@ -488,20 +488,38 @@ async def chat_completions(
 
     gateway_api_key = authorization.replace("Bearer ", "")
 
-    # 获取当前模型
+    # 获取模型配置 - 根据请求的 model 名称查找
     db = SessionLocal()
     try:
+        # 首先尝试根据请求的 model 名称查找
         current_model = (
             db.query(ModelConfig)
-            .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
-            .order_by(ModelConfig.priority)
+            .filter(
+                ModelConfig.status == 1,
+                ModelConfig.connect_status == 1,
+                ModelConfig.model_name == request.model,
+            )
             .first()
         )
+
+        # 如果没找到指定模型，使用优先级最高的可用模型
+        if not current_model:
+            current_model = (
+                db.query(ModelConfig)
+                .filter(ModelConfig.status == 1, ModelConfig.connect_status == 1)
+                .order_by(ModelConfig.priority)
+                .first()
+            )
+            print(
+                f"[WARNING] 未找到模型 '{request.model}'，使用默认模型: {current_model.model_name if current_model else 'None'}"
+            )
     finally:
         db.close()
 
     if not current_model:
-        raise HTTPException(status_code=503, detail="无可用的模型，请先配置模型")
+        raise HTTPException(
+            status_code=503, detail=f"模型 '{request.model}' 不可用，请先配置模型"
+        )
 
     request_data = {
         "model": current_model.model_name,
