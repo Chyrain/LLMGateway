@@ -80,10 +80,10 @@ class GatewayCore:
         },
         "ollama": {
             "api_base": "http://localhost:11434",
-            "api_path": "/v1/chat/completions",
+            "api_path": "/api/chat",
             "auth_header": "Authorization",
             "auth_format": "Bearer",
-            "stream_support": False,
+            "stream_support": True,
         },
         "localai": {
             "api_base": "http://localhost:8080",
@@ -174,6 +174,8 @@ class GatewayCore:
             return cls._build_claude_request(request_data)
         elif vendor == "qwen":
             return cls._build_qwen_request(request_data)
+        elif vendor == "ollama":
+            return cls._build_ollama_request(request_data)
 
         return base_request
 
@@ -270,6 +272,52 @@ class GatewayCore:
                 "top_p": request_data.get("top_p", 0.8),
             },
         }
+
+    @classmethod
+    def _build_ollama_request(cls, request_data: Dict) -> Dict:
+        """构建 Ollama 请求体"""
+        # Ollama 的 /api/chat 端点格式
+        messages = request_data.get("messages", [])
+
+        # Ollama 的 messages 格式与 OpenAI 兼容
+        # 但需要确保 role 只能是 user 或 assistant
+        ollama_messages = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            # Ollama 只支持 user 和 assistant，system 转为 user
+            if role == "system":
+                ollama_messages.append(
+                    {"role": "user", "content": f"System: {content}"}
+                )
+            else:
+                ollama_messages.append({"role": role, "content": content})
+
+        request = {
+            "model": request_data.get("model"),
+            "messages": ollama_messages,
+            "stream": request_data.get("stream", False),
+        }
+
+        # 可选参数
+        options = {}
+        if "temperature" in request_data:
+            options["temperature"] = request_data["temperature"]
+        if "max_tokens" in request_data:
+            options["num_predict"] = request_data["max_tokens"]
+        if "top_p" in request_data:
+            options["top_p"] = request_data["top_p"]
+        if "stop" in request_data:
+            options["stop"] = (
+                request_data["stop"]
+                if isinstance(request_data["stop"], list)
+                else [request_data["stop"]]
+            )
+
+        if options:
+            request["options"] = options
+
+        return request
 
     @classmethod
     async def test_connectivity(
@@ -753,6 +801,8 @@ class GatewayCore:
             return cls._parse_claude_response(response_data)
         elif vendor == "qwen":
             return cls._parse_qwen_response(response_data)
+        elif vendor == "ollama":
+            return cls._parse_ollama_response(response_data)
         else:
             return cls._parse_openai_compatible_response(response_data)
 
@@ -916,6 +966,36 @@ class GatewayCore:
                 "prompt_tokens": usage.get("input_tokens", 0),
                 "completion_tokens": usage.get("output_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
+            },
+        }
+
+    @classmethod
+    def _parse_ollama_response(cls, response_data: Dict) -> Dict:
+        """解析 Ollama 响应为 OpenAI 格式"""
+        message = response_data.get("message", {})
+
+        return {
+            "id": f"chatcmpl-{id(response_data)}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": response_data.get("model", "ollama"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": message.get("role", "assistant"),
+                        "content": message.get("content", ""),
+                    },
+                    "finish_reason": "stop"
+                    if response_data.get("done", True)
+                    else None,
+                }
+            ],
+            "usage": {
+                "prompt_tokens": response_data.get("prompt_eval_count", 0),
+                "completion_tokens": response_data.get("eval_count", 0),
+                "total_tokens": response_data.get("prompt_eval_count", 0)
+                + response_data.get("eval_count", 0),
             },
         }
 
