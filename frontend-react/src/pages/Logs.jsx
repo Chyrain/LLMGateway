@@ -102,6 +102,16 @@ const Logs = () => {
     return map[type] || 'default';
   };
 
+  const formatJson = (str) => {
+    if (!str) return '-';
+    try {
+      const obj = typeof str === 'string' ? JSON.parse(str) : str;
+      return JSON.stringify(obj, null, 2);
+    } catch {
+      return str;
+    }
+  };
+
   const columns = [
     {
       title: 'ID',
@@ -281,11 +291,39 @@ const Logs = () => {
               <span className="content">{currentLog.model_id}</span>
             </div>
             <div className="detail-row">
+              <span className="label">请求模型:</span>
+              <span className="content">{currentLog.request_model || '-'}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">实际模型:</span>
+              <span className="content">{currentLog.actual_model || '-'}</span>
+            </div>
+            <div className="detail-row">
               <span className="label">内容:</span>
               <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                 {currentLog.log_content}
               </pre>
             </div>
+            <div className="detail-row">
+              <span className="label">请求内容:</span>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflow: 'auto', background: '#f5f5f5', padding: '8px' }}>
+                {formatJson(currentLog.request_content)}
+              </pre>
+            </div>
+            <div className="detail-row">
+              <span className="label">响应内容:</span>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflow: 'auto', background: '#f5f5f5', padding: '8px' }}>
+                {formatJson(currentLog.response_content)}
+              </pre>
+            </div>
+            {currentLog.error_message && (
+              <div className="detail-row">
+                <span className="label">错误信息:</span>
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '200px', overflow: 'auto', background: '#fff1f0', padding: '8px', color: '#ff4d4f' }}>
+                  {currentLog.error_message}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </Drawer>

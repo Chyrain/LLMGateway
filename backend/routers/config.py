@@ -14,7 +14,7 @@ config_router = APIRouter()
 # 内存配置存储（生产环境应使用数据库）
 config_store = {
     "gateway_port": "8080",
-    "gateway_api_key": "",
+    "gateway_api_key": "gtw_admin123",
     "alert_threshold": "80",
     "switch_threshold": "99",
     "log_retention": "30",
@@ -51,18 +51,23 @@ async def list_configs(db: Session = Depends(get_db)):
 
 
 @config_router.get("/api/config/{key}")
-async def get_config(key: str):
+async def get_config(key: str, db: Session = Depends(get_db)):
     """
-    获取单个配置
+    获取单个配置 - 优先从数据库读取
     """
-    if key not in config_store:
-        # 尝试从数据库获取
-        return {
-            "code": 200,
-            "msg": "success",
-            "data": {"config_value": config_store.get(key, "")},
-        }
-
+    try:
+        # 优先从数据库读取
+        config = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
+        if config:
+            return {
+                "code": 200,
+                "msg": "success",
+                "data": {"config_value": config.config_value},
+            }
+    except Exception as e:
+        print(f"从数据库读取配置失败: {e}")
+    
+    # 回退到内存配置
     return {
         "code": 200,
         "msg": "success",

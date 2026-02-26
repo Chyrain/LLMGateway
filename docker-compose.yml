@@ -19,6 +19,7 @@ services:
     volumes:
       - ./runtime_data/backend_data:/data
       - ./backend/logs:/app/logs
+      - ./backend:/app
     restart: unless-stopped
     networks:
       - llmgateway-network
@@ -38,6 +39,7 @@ services:
       - GATEWAY_MODE=true
     volumes:
       - ./runtime_data/backend_data:/data
+      - ./backend:/app
     restart: unless-stopped
     networks:
       - llmgateway-network

@@ -905,9 +905,19 @@ class GatewayCore:
 
     @classmethod
     async def sync_request(
-        cls, vendor: str, api_base: str, api_key: str, request_data: Dict[str, Any]
+        cls,
+        vendor: str,
+        api_base: str,
+        api_key: str,
+        request_data: Dict[str, Any],
+        api_path: str = None,
     ) -> Dict[str, Any]:
         """同步请求转发"""
+        # DEBUG: 记录请求参数
+        print(
+            f"[DEBUG] sync_request: vendor={vendor}, api_base={api_base}, api_path={api_path}, api_key={api_key[:20] if api_key else None}..."
+        )
+
         config = cls.VENDOR_CONFIGS.get(vendor, {})
         headers = cls._build_headers(vendor, api_key, config)
 
@@ -916,7 +926,7 @@ class GatewayCore:
 
         # 构建 URL，避免路径重复
         api_base_clean = api_base.rstrip("/")
-        api_path = config.get("api_path", "/v1/chat/completions")
+        api_path = api_path or config.get("api_path", "/v1/chat/completions")
 
         # 检查 api_base 是否已经包含 api_path 的部分路径
         # 例如 api_base="https://example.com/v1" 且 api_path="/v1/chat/completions"
@@ -942,7 +952,12 @@ class GatewayCore:
 
     @classmethod
     async def stream_request(
-        cls, vendor: str, api_base: str, api_key: str, request_data: Dict[str, Any]
+        cls,
+        vendor: str,
+        api_base: str,
+        api_key: str,
+        request_data: Dict[str, Any],
+        api_path: str = None,
     ) -> AsyncGenerator[str, None]:
         """流式请求转发"""
         config = cls.VENDOR_CONFIGS.get(vendor, {})
@@ -953,7 +968,7 @@ class GatewayCore:
 
         # 构建 URL，避免路径重复
         api_base_clean = api_base.rstrip("/")
-        api_path = config.get("api_path", "/v1/chat/completions")
+        api_path = api_path or config.get("api_path", "/v1/chat/completions")
 
         # 检查 api_base 是否已经包含 api_path 的部分路径
         if api_path.startswith("/v1") and api_base_clean.endswith("/v1"):
@@ -1047,7 +1062,10 @@ class GatewayCore:
 
     @classmethod
     def _standardize_response(cls, vendor: str, response_data: Dict) -> Dict:
-        """响应标准化 - 将厂商响应转换为OpenAI格式"""
+        print(
+            f"[DEBUG] _standardize_response called: vendor={vendor}, keys={list(response_data.keys())}"
+        )
+        # 响应标准化 - 将厂商响应转换为OpenAI格式
         # 根据厂商使用特定的解析器
         config = cls.VENDOR_CONFIGS.get(vendor, {})
 
@@ -1065,6 +1083,8 @@ class GatewayCore:
             return cls._parse_qwen_official_response(response_data)
         elif vendor == "spark":
             return cls._parse_spark_response(response_data)
+        elif vendor == "ollama":
+            return cls._parse_ollama_response(response_data)
         else:
             return cls._parse_openai_compatible_response(response_data)
 
@@ -1357,7 +1377,29 @@ class GatewayCore:
         try:
             data_obj = json.loads(data)
 
-            # 转换为OpenAI SSE格式
+            # Ollama 格式转换
+            if vendor == "ollama":
+                message = data_obj.get("message", {})
+                content = message.get("content", "")
+                role = message.get("role", "assistant")
+
+                # 转换为 OpenAI SSE 格式
+                standardized = {
+                    "id": data_obj.get("id", f"chatcmpl-{id(data_obj)}"),
+                    "object": "chat.completion.chunk",
+                    "created": data_obj.get("created", 0),
+                    "model": data_obj.get("model", "unknown"),
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": role, "content": content},
+                            "finish_reason": "stop" if data_obj.get("done") else None,
+                        }
+                    ],
+                }
+                return f"data: {json.dumps(standardized)}\n\n"
+
+            # 默认使用 OpenAI 格式
             standardized = {
                 "id": data_obj.get("id", f"chatcmpl-{id(data_obj)}"),
                 "object": "chat.completion.chunk",

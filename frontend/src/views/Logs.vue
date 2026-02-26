@@ -168,8 +168,39 @@
         <el-descriptions-item label="日志内容" :span="2">
           <el-input
             type="textarea"
-            :rows="10"
+            :rows="4"
             :value="currentLog.log_content"
+            readonly
+            class="log-content"
+          />
+        </el-descriptions-item>
+        <el-descriptions-item label="请求内容" :span="2">
+          <el-input
+            type="textarea"
+            :rows="8"
+            :value="formatJson(currentLog.request_content)"
+            readonly
+            class="log-content"
+            v-if="currentLog.request_content"
+          />
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="响应内容" :span="2">
+          <el-input
+            type="textarea"
+            :rows="8"
+            :value="formatJson(currentLog.response_content)"
+            readonly
+            class="log-content"
+            v-if="currentLog.response_content"
+          />
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="错误信息" :span="2" v-if="currentLog.error_message">
+          <el-input
+            type="textarea"
+            :rows="4"
+            :value="currentLog.error_message"
             readonly
             class="log-content"
           />
@@ -224,6 +255,16 @@ const formatTime = (time) => {
   return time ? dayjs(time).format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
+const formatJson = (str) => {
+  if (!str) return ''
+  try {
+    const obj = typeof str === 'string' ? JSON.parse(str) : str
+    return JSON.stringify(obj, null, 2)
+  } catch {
+    return str
+  }
+}
+
 const getLogTypeName = (type) => {
   const map = { 1: '访问日志', 2: '切换日志', 3: '错误日志', 4: '测试日志' }
   return map[type] || '未知'
@@ -258,9 +299,9 @@ const fetchData = async () => {
     
     const res = await logApi.list(params)
     
-    // 后端返回: { code, msg, data: [...] }
+    // 后端返回: { code, msg, data: [...], total: n }
     tableData.value = res.data || []
-    pagination.total = tableData.value.length
+    pagination.total = res.total || 0
   } catch (error) {
     ElMessage.error('获取日志失败')
   } finally {
