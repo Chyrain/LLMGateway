@@ -373,23 +373,36 @@ GATEWAY_PORT=8080
 
 ## 📝 更新日志
 
+### v1.2.0 (2026-03-01)
+
+#### 🎯 核心功能
+- 🔄 **统一厂商配置** - 新增 `config/vendors.json` 统一管理 24+ 厂商模型配置
+- 🎯 **模型能力自动检测** - 自动识别 Vision/Text/Audio 能力和上下文长度
+- 📦 **Coding Plan 支持** - 支持阿里云百炼、MiniMax、智谱、火山方舟等厂商的编程套餐
+
+#### 🏭 新增厂商
+- **国际厂商**: Mistral AI, Groq, Perplexity, xAI Grok, Together AI, Cohere
+- **国内厂商**: 深度求索(DeepSeek), 月之暗面(Kimi), 阶跃星辰, 腾讯混元, 字节豆包, 零一万物
+- **本地模型**: Ollama, vLLM, LM Studio
+
+#### 🔧 API 增强
+- ✅ `/api/models` 返回模型能力（vision/text/context_length）
+- ✅ `/api/coding-plans` 获取 Coding Plan 套餐信息
+- ✅ `/api/coding-plans/packages` 获取套餐价格信息
+- ✅ `/api/cron/sync-quota` 定时同步配额
+
+#### 🎨 前端优化
+- ✅ 日志详情页美化（JSON 语法高亮、默认展开）
+- ✅ 新增复制功能
+- ✅ 模型配置模板同步更新
+
+#### 📝 文档更新
+- ✅ AGENTS.md 中文版开发指南
+- ✅ 厂商配置文档完善
+
+---
+
 ### v1.1.0 (2026-02-05)
-
-- 🎨 **React 前端** - 新增 React + Ant Design 版本
-- 🔧 **Nginx 修复** - 修复 API 代理配置问题
-- 📖 **文档完善** - 更新 README 和项目结构
-- 🐛 **Bug 修复** - 若干细节优化
-
-### v1.0.0 (2026-02-04)
-
-- ✨ 初始版本发布
-- 🔐 用户认证系统
-- 🤖 多模型配置管理
-- 📊 额度监控
-- 📝 请求日志
-- 🔔 通知系统
-- 🎨 Vue 3 管理后台
-
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！

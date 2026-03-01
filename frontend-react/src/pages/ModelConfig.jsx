@@ -11,55 +11,78 @@ import {
 import { modelApi } from '../services/api';
 
 // 厂商默认配置（API Base 和模型列表）
+// 与后端 config/vendors.json 保持同步
 const VENDOR_CONFIGS = {
+  // === 国际厂商 ===
   openai: {
     name: 'OpenAI',
     apiBase: 'https://api.openai.com/v1',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['gpt-3.5-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4'],
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1', 'o1-mini', 'o3-mini'],
     needApiKey: true
   },
+  anthropic: {
+    name: 'Anthropic Claude',
+    apiBase: 'https://api.anthropic.com/v1',
+    apiPath: '/messages',
+    apiSpec: 'anthropic',
+    models: ['claude-sonnet-4-20250514', 'claude-haiku-3-5-20250514', 'claude-opus-4-20250514', 'claude-3-5-sonnet-20241022'],
+    needApiKey: true
+  },
+  gemini: {
+    name: 'Google Gemini',
+    apiBase: 'https://generativelanguage.googleapis.com/v1beta',
+    apiPath: '/models/gemini-2.5-pro:generateContent',
+    apiSpec: 'gemini',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    needApiKey: true
+  },
+  mistral: {
+    name: 'Mistral AI',
+    apiBase: 'https://api.mistral.ai/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest', 'pixtral-12b'],
+    needApiKey: true
+  },
+  groq: {
+    name: 'Groq',
+    apiBase: 'https://api.groq.com/openai/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+    needApiKey: true
+  },
+  perplexity: {
+    name: 'Perplexity',
+    apiBase: 'https://api.perplexity.ai',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['sonar-pro', 'sonar', 'sonar-reasoning-pro'],
+    needApiKey: true
+  },
+  xai: {
+    name: 'xAI Grok',
+    apiBase: 'https://api.x.ai/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['grok-3', 'grok-3-mini', 'grok-2-vision'],
+    needApiKey: true
+  },
+  // === 国内厂商 ===
   qwen: {
     name: '通义千问',
     apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen2-72b-instruct'],
-    needApiKey: true
-  },
-  zhipu: {
-    name: '智谱 AI',
-    apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['glm-3-turbo', 'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4.7'],
-    needApiKey: true
-  },
-  spark: {
-    name: '讯飞星火',
-    apiBase: 'https://spark-api.xf-yun.com',
-    apiPath: '/v3.5/chat',
-    apiSpec: 'spark',
-    models: ['spark-v3.1', 'spark-v3.5'],
-    needApiKey: true
-  },
-  spark_ws: {
-    name: '讯飞星火 (WebSocket)',
-    apiBase: 'wss://spark-api.xf-yun.com',
-    apiPath: '/v3.5/chat',
-    apiSpec: 'spark_ws',
-    models: ['spark-v3.1', 'spark-v3.5'],
+    models: ['qwen3-max', 'qwen3-plus', 'qwen3-flash', 'qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen-long', 'qwen-vl-max', 'qwq-plus'],
     needApiKey: true,
-    needSecret: true
-  },
-  hunyuan: {
-    name: '腾讯混元',
-    apiBase: 'https://api.hunyuan.cloud.tencent.com/v1',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['hunyuan-turbos-latest', 'hunyuan-pro-latest'],
-    needApiKey: true
+    codingPlan: {
+      name: '通义灵码 Coding Plan',
+      apiBase: 'https://coding.dashscope.aliyuncs.com/v1',
+      apiKeyPrefix: 'sk-sp-'
+    }
   },
   qwen_official: {
     name: '通义千问 (官方)',
@@ -69,130 +92,114 @@ const VENDOR_CONFIGS = {
     models: ['qwen-turbo', 'qwen-plus', 'qwen-max'],
     needApiKey: true
   },
+  zhipu: {
+    name: '智谱 AI',
+    apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['glm-5', 'glm-4-plus', 'glm-4-flash', 'glm-4', 'glm-4v-plus', 'glm-3-turbo'],
+    needApiKey: true
+  },
+  deepseek: {
+    name: '深度求索',
+    apiBase: 'https://api.deepseek.com',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3', 'deepseek-r1'],
+    needApiKey: true
+  },
+  moonshot: {
+    name: '月之暗面 Kimi',
+    apiBase: 'https://api.moonshot.cn/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-k2.5'],
+    needApiKey: true
+  },
+  minimax: {
+    name: 'MiniMax',
+    apiBase: 'https://api.minimaxi.com/v1',
+    apiPath: '/text/chatcompletion_v2',
+    apiSpec: 'openai',
+    models: ['MiniMax-M2.5', 'MiniMax-M1', 'abab6.5-chat'],
+    needApiKey: true
+  },
+  spark: {
+    name: '讯飞星火',
+    apiBase: 'https://spark-api-open.xf-yun.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['spark-4.0-ultra', 'spark-max', 'spark-pro-128k', 'spark-lite'],
+    needApiKey: true
+  },
+  hunyuan: {
+    name: '腾讯混元',
+    apiBase: 'https://api.hunyuan.cloud.tencent.com/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: ['hunyuan-turbos-latest', 'hunyuan-pro'],
+    needApiKey: true
+  },
   doubao: {
     name: '字节豆包',
     apiBase: 'https://ark.cn-beijing.volces.com/api/v3',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['Doubao-pro-32k', 'Doubao-pro-128k'],
+    models: ['doubao-pro-32k', 'doubao-pro-128k', 'doubao-vision-pro'],
     needApiKey: true
   },
-  claude: {
-    name: 'Claude',
-    apiBase: 'https://api.anthropic.com/v1',
-    apiPath: '/messages',
-    apiSpec: 'anthropic',
-    models: ['claude-sonnet-4-20250514', 'claude-haiku-3-20250514', 'claude-opus-4-20250514'],
-    needApiKey: true
-  },
-  gemini: {
-    name: 'Google Gemini',
-    apiBase: 'https://generativelanguage.googleapis.com/v1beta',
-    apiPath: '/models/gemini-pro:generateContent',
-    apiSpec: 'gemini',
-    models: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'],
-    needApiKey: true
-  },
-  mistral: {
-    name: 'Mistral AI',
-    apiBase: 'https://api.mistral.ai/v1',
+  yi: {
+    name: '零一万物',
+    apiBase: 'https://api.lingyiwanwu.com/v1',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['mistral-tiny', 'mistral-small', 'mistral-medium', 'mistral-large', 'open-mistral-7b'],
-    needApiKey: true
-  },
-  perplexity: {
-    name: 'Perplexity',
-    apiBase: 'https://api.perplexity.ai',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['sonar-small-online', 'sonar-medium-online', 'sonar-large-online'],
-    needApiKey: true
-  },
-  groq: {
-    name: 'Groq',
-    apiBase: 'https://api.groq.com/openai/v1',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['llama3-8b-8192', 'llama3-70b-8192', 'mixtral-8x7b-32768'],
-    needApiKey: true
-  },
-  minimax: {
-    name: 'MiniMax',
-    apiBase: 'https://api.minimax.io/v1/text',
-    apiPath: '/chatcompletion_v2',
-    apiSpec: 'openai',
-    models: ['MiniMax-M1', 'MiniMax-Text-01', 'abab6.5s-chat', 'abab6.5-chat'],
-    needApiKey: true
-  },
-  deepseek: {
-    name: 'DeepSeek',
-    apiBase: 'https://api.deepseek.com/v1',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['deepseek-chat', 'deepseek-reasoner'],
-    needApiKey: true
-  },
-  moonshot: {
-    name: '月之暗面 (Moonshot)',
-    apiBase: 'https://api.moonshot.cn/v1',
-    apiPath: '/chat/completions',
-    apiSpec: 'openai',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+    models: ['yi-lightning', 'yi-large', 'yi-medium', 'yi-vision'],
     needApiKey: true
   },
   stepfun: {
-    name: '阶跃星辰 (StepFun)',
+    name: '阶跃星辰',
     apiBase: 'https://api.stepfun.com/v1',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['step-1v-8k', 'step-1v-32k', 'step-1v-128k'],
+    models: ['step-1v-8k', 'step-1v-32k'],
     needApiKey: true
   },
-  // 本地模型
+  // === 本地模型 ===
   ollama: {
     name: 'Ollama (本地)',
     apiBase: 'http://localhost:11434',
     apiPath: '/v1/chat/completions',
     apiSpec: 'openai',
-    models: ['llama3', 'llama3.1', 'qwen2', 'mistral', 'codellama', 'phi3'],
-    needApiKey: false
-  },
-  localai: {
-    name: 'LocalAI (本地)',
-    apiBase: 'http://localhost:8080',
-    apiPath: '/v1/chat/completions',
-    apiSpec: 'openai',
-    models: ['llama-2-7b', 'mistral-7b', 'codellama-7b', 'gpt-4all'],
-    needApiKey: false
-  },
-  lmstudio: {
-    name: 'LM Studio (本地)',
-    apiBase: 'http://localhost:1234',
-    apiPath: '/v1/chat/completions',
-    apiSpec: 'openai',
-    models: ['llama-3-8b', 'mistral-7b', 'neural-chat', 'starcoder'],
+    models: ['llama3.1', 'llama3.2', 'qwen2.5', 'mistral', 'codellama'],
     needApiKey: false
   },
   vllm: {
     name: 'vLLM (本地)',
-    apiBase: 'http://localhost:8000',
-    apiPath: '/v1/chat/completions',
+    apiBase: 'http://localhost:8000/v1',
+    apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['llama-2-7b', 'llama-2-13b', 'llama-2-70b', 'qwen-14b'],
+    models: [],
     needApiKey: false
   },
-  // 自定义厂商
+  lmstudio: {
+    name: 'LM Studio (本地)',
+    apiBase: 'http://localhost:1234/v1',
+    apiPath: '/chat/completions',
+    apiSpec: 'openai',
+    models: [],
+    needApiKey: false
+  },
+  // === 自定义 ===
   custom: {
     name: '自定义',
     apiBase: '',
-    apiPath: '',
+    apiPath: '/chat/completions',
     apiSpec: 'openai',
     models: [],
     needApiKey: true,
     isCustom: true
   }
-};
+}
 
 // API 规范选项
 const API_SPEC_OPTIONS = [

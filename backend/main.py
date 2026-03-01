@@ -28,7 +28,7 @@ from routers.stats import stats_router
 from routers.logs import logs_router
 from routers.config import config_router
 from routers.quota import quota_router
-
+from routers.cron import cron_router
 
 # 判断运行模式
 API_MODE = os.getenv("API_MODE", "false").lower() == "true"
@@ -86,7 +86,8 @@ if API_MODE:
     app.include_router(config_router)
     # 配额管理接口
     app.include_router(quota_router)
-
+    # 定时任务接口
+    app.include_router(cron_router)
     # API 模式下也注册网关接口，供前端测试使用
     from routers.gateway import gateway_router
     app.include_router(gateway_router)

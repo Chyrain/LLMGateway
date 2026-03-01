@@ -1,0 +1,481 @@
+{
+  "version": "2026-03-01",
+  "description": "LLMGateway 统一厂商模型配置表",
+  "vendors": {
+    "openai": {
+      "name": "OpenAI",
+      "name_zh": "OpenAI",
+      "api_base": "https://api.openai.com/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "gpt-4o": {"context_length": 128000, "capabilities": ["text", "vision", "audio"], "vision": true},
+        "gpt-4o-mini": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
+        "gpt-4-turbo": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
+        "gpt-4": {"context_length": 8192, "capabilities": ["text"], "vision": false},
+        "gpt-3.5-turbo": {"context_length": 16385, "capabilities": ["text"], "vision": false},
+        "o1": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false},
+        "o1-mini": {"context_length": 128000, "capabilities": ["text", "reasoning"], "vision": false},
+        "o3-mini": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false}
+      }
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "name_zh": "Anthropic Claude",
+      "api_base": "https://api.anthropic.com/v1",
+      "api_path": "/messages",
+      "api_spec": "anthropic",
+      "auth_header": "x-api-key",
+      "auth_format": "direct",
+      "stream_support": true,
+      "extra_headers": {"anthropic-version": "2023-06-01"},
+      "coding_plan": null,
+      "models": {
+        "claude-sonnet-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
+        "claude-haiku-3-5-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
+        "claude-opus-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
+        "claude-3-5-sonnet-20241022": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
+        "claude-3-5-haiku-20241022": {"context_length": 200000, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "qwen": {
+      "name": "Qwen",
+      "name_zh": "阿里通义千问",
+      "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": {
+        "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+        "api_key_prefix": "sk-sp-",
+        "description": "通义灵码 Coding Plan"
+      },
+      "models": {
+        "qwen3-max": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "qwen3-plus": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "qwen3-flash": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "qwen-plus": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "qwen-turbo": {"context_length": 8192, "capabilities": ["text"], "vision": false},
+        "qwen-max": {"context_length": 32768, "capabilities": ["text"], "vision": false},
+        "qwen-long": {"context_length": 1048576, "capabilities": ["text"], "vision": false},
+        "qwen-vl-max": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true},
+        "qwen-vl-plus": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true},
+        "qwq-plus": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false}
+      }
+    },
+    "qwen_official": {
+      "name": "Qwen Official",
+      "name_zh": "通义千问(官方)",
+      "api_base": "https://dashscope.aliyuncs.com",
+      "api_path": "/api/v1/services/aigc/text-generation/generation",
+      "api_spec": "qwen_official",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "qwen-turbo": {"context_length": 8192, "capabilities": ["text"], "vision": false},
+        "qwen-plus": {"context_length": 32768, "capabilities": ["text"], "vision": false},
+        "qwen-max": {"context_length": 32768, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "zhipu": {
+      "name": "Zhipu AI",
+      "name_zh": "智谱AI",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "glm-5": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
+        "glm-4-plus": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
+        "glm-4-flash": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
+        "glm-4": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
+        "glm-4v-plus": {"context_length": 16384, "capabilities": ["text", "vision"], "vision": true},
+        "glm-3-turbo": {"context_length": 8192, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "name_zh": "深度求索",
+      "api_base": "https://api.deepseek.com",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "deepseek-chat": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "deepseek-reasoner": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false},
+        "deepseek-v3": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "deepseek-r1": {"context_length": 65536, "capabilities": ["text", "reasoning"], "vision": false}
+      }
+    },
+    "moonshot": {
+      "name": "Moonshot",
+      "name_zh": "月之暗面Kimi",
+      "api_base": "https://api.moonshot.cn/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "moonshot-v1-8k": {"context_length": 8192, "capabilities": ["text"], "vision": false},
+        "moonshot-v1-32k": {"context_length": 32768, "capabilities": ["text"], "vision": false},
+        "moonshot-v1-128k": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "kimi-k2.5": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true}
+      }
+    },
+    "minimax": {
+      "name": "MiniMax",
+      "name_zh": "MiniMax",
+      "api_base": "https://api.minimaxi.com/v1",
+      "api_path": "/text/chatcompletion_v2",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "MiniMax-M2.5": {"context_length": 1048576, "capabilities": ["text", "vision"], "vision": true},
+        "MiniMax-M1": {"context_length": 100000, "capabilities": ["text"], "vision": false},
+        "abab6.5-chat": {"context_length": 24576, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "spark": {
+      "name": "Spark",
+      "name_zh": "讯飞星火",
+      "api_base": "https://spark-api-open.xf-yun.com/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "spark-4.0-ultra": {"context_length": 32000, "capabilities": ["text"], "vision": false},
+        "spark-max": {"context_length": 32000, "capabilities": ["text"], "vision": false},
+        "spark-pro-128k": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "spark-lite": {"context_length": 8192, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "hunyuan": {
+      "name": "Hunyuan",
+      "name_zh": "腾讯混元",
+      "api_base": "https://api.hunyuan.cloud.tencent.com/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "hunyuan-turbos-latest": {"context_length": 256000, "capabilities": ["text"], "vision": false},
+        "hunyuan-pro": {"context_length": 32000, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "doubao": {
+      "name": "Doubao",
+      "name_zh": "字节豆包",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "doubao-pro-32k": {"context_length": 32000, "capabilities": ["text"], "vision": false},
+        "doubao-pro-128k": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "doubao-vision-pro": {"context_length": 32000, "capabilities": ["text", "vision"], "vision": true}
+      }
+    },
+    "yi": {
+      "name": "Yi",
+      "name_zh": "零一万物",
+      "api_base": "https://api.lingyiwanwu.com/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "yi-lightning": {"context_length": 16000, "capabilities": ["text"], "vision": false},
+        "yi-large": {"context_length": 16000, "capabilities": ["text"], "vision": false},
+        "yi-medium": {"context_length": 32000, "capabilities": ["text"], "vision": false},
+        "yi-vision": {"context_length": 4096, "capabilities": ["text", "vision"], "vision": true}
+      }
+    },
+    "stepfun": {
+      "name": "StepFun",
+      "name_zh": "阶跃星辰",
+      "api_base": "https://api.stepfun.com/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "step-1v-8k": {"context_length": 8192, "capabilities": ["text"], "vision": false},
+        "step-1v-32k": {"context_length": 32768, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "gemini": {
+      "name": "Google Gemini",
+      "name_zh": "Google Gemini",
+      "api_base": "https://generativelanguage.googleapis.com/v1beta",
+      "api_path": "/models/{model}:generateContent",
+      "api_spec": "gemini",
+      "auth_header": "x-goog-api-key",
+      "auth_format": "direct",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "gemini-2.5-pro": {"context_length": 1048576, "capabilities": ["text", "vision", "audio"], "vision": true},
+        "gemini-2.5-flash": {"context_length": 1048576, "capabilities": ["text", "vision", "audio"], "vision": true},
+        "gemini-1.5-pro": {"context_length": 2097152, "capabilities": ["text", "vision", "audio"], "vision": true},
+        "gemini-1.5-flash": {"context_length": 1048576, "capabilities": ["text", "vision", "audio"], "vision": true}
+      }
+    },
+    "mistral": {
+      "name": "Mistral AI",
+      "name_zh": "Mistral AI",
+      "api_base": "https://api.mistral.ai/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "mistral-large-latest": {"context_length": 128000, "capabilities": ["text"], "vision": false},
+        "mistral-small-latest": {"context_length": 128000, "capabilities": ["text"], "vision": false},
+        "codestral-latest": {"context_length": 128000, "capabilities": ["text", "code"], "vision": false},
+        "pixtral-12b": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true}
+      }
+    },
+    "groq": {
+      "name": "Groq",
+      "name_zh": "Groq",
+      "api_base": "https://api.groq.com/openai/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "llama-3.3-70b-versatile": {"context_length": 128000, "capabilities": ["text"], "vision": false},
+        "llama-3.1-70b-versatile": {"context_length": 128000, "capabilities": ["text"], "vision": false},
+        "llama-3.1-8b-instant": {"context_length": 128000, "capabilities": ["text"], "vision": false},
+        "mixtral-8x7b-32768": {"context_length": 32768, "capabilities": ["text"], "vision": false}
+      }
+    },
+    "perplexity": {
+      "name": "Perplexity",
+      "name_zh": "Perplexity",
+      "api_base": "https://api.perplexity.ai",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "sonar-pro": {"context_length": 200000, "capabilities": ["text", "search"], "vision": false},
+        "sonar": {"context_length": 127072, "capabilities": ["text", "search"], "vision": false},
+        "sonar-reasoning-pro": {"context_length": 128000, "capabilities": ["text", "reasoning"], "vision": false}
+      }
+    },
+    "xai": {
+      "name": "xAI",
+      "name_zh": "xAI Grok",
+      "api_base": "https://api.x.ai/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "grok-3": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false},
+        "grok-3-mini": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "grok-2-vision": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true}
+      }
+    },
+    "ollama": {
+      "name": "Ollama",
+      "name_zh": "Ollama(本地)",
+      "api_base": "http://localhost:11434",
+      "api_path": "/v1/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {
+        "llama3.1": {"context_length": 131072, "capabilities": ["text"], "vision": false},
+        "llama3.2": {"context_length": 131072, "capabilities": ["text", "vision"], "vision": true},
+        "qwen2.5": {"context_length": 32768, "capabilities": ["text"], "vision": false},
+        "mistral": {"context_length": 32768, "capabilities": ["text"], "vision": false},
+        "codellama": {"context_length": 16384, "capabilities": ["text", "code"], "vision": false}
+      }
+    },
+    "vllm": {
+      "name": "vLLM",
+      "name_zh": "vLLM(本地)",
+      "api_base": "http://localhost:8000/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {}
+    },
+    "lmstudio": {
+      "name": "LM Studio",
+      "name_zh": "LM Studio(本地)",
+      "api_base": "http://localhost:1234/v1",
+      "api_path": "/chat/completions",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {}
+    },
+    "custom": {
+      "name": "Custom",
+      "name_zh": "自定义",
+      "api_base": "",
+      "api_path": "",
+      "api_spec": "openai",
+      "auth_header": "Authorization",
+      "auth_format": "Bearer",
+      "stream_support": true,
+      "coding_plan": null,
+      "models": {}
+    }
+  },
+  "api_specs": {
+    "openai": {
+      "description": "OpenAI Chat Completions API 格式",
+      "request_format": "openai",
+      "response_format": "openai",
+      "default_path": "/chat/completions"
+    },
+    "anthropic": {
+      "description": "Anthropic Messages API 格式",
+      "request_format": "anthropic",
+      "response_format": "anthropic",
+      "default_path": "/messages"
+    },
+    "gemini": {
+      "description": "Google Gemini API 格式",
+      "request_format": "gemini",
+      "response_format": "gemini",
+      "default_path": "/models/{model}:generateContent"
+    },
+    "qwen_official": {
+      "description": "通义千问官方API格式",
+      "request_format": "qwen_official",
+      "response_format": "qwen_official",
+      "default_path": "/api/v1/services/aigc/text-generation/generation"
+    },
+    "spark": {
+      "description": "讯飞星火API格式",
+      "request_format": "spark",
+      "response_format": "spark",
+      "default_path": "/v3.5/chat"
+    },
+    "custom": {
+      "description": "完全自定义格式",
+      "request_format": "custom",
+      "response_format": "custom",
+      "default_path": ""
+    }
+  },
+  "coding_plans": {
+    "description": "各厂商 Coding Plan 编程套餐配置",
+    "providers": {
+      "aliyun_bailian": {
+        "name": "阿里云百炼 Coding Plan",
+        "website": "https://www.aliyun.com/product/bailian",
+        "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+        "api_key_prefix": "sk-sp-",
+        "quota_query_endpoint": null,
+        "quota_query_method": "控制台查看",
+        "packages": {
+          "lite": {"name": "Lite", "price_monthly": 40, "limits": {"per_5_hours": 1200, "per_month": 18000}},
+          "pro": {"name": "Pro", "price_monthly": 200, "limits": {"per_5_hours": 6000, "per_month": 90000}}
+        },
+        "supported_models": ["qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"]
+      },
+      "minimax": {
+        "name": "MiniMax Coding Plan",
+        "website": "https://platform.minimaxi.com",
+        "api_base": "https://api.minimaxi.com/v1",
+        "quota_query_endpoint": "https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+        "quota_query_method": "API",
+        "quota_response_field": "model_remains",
+        "packages": {
+          "starter": {"name": "Starter", "price_monthly": 29, "limits": {"per_5_hours": 40}},
+          "plus": {"name": "Plus", "price_monthly": 49, "limits": {"per_5_hours": 100}},
+          "max": {"name": "Max", "price_monthly": 119, "limits": {"per_5_hours": 300}}
+        },
+        "supported_models": ["MiniMax-M2.5", "MiniMax-M2.1"],
+        "quota_calculation": {"prompt_to_calls": 15}
+      },
+      "zhipu": {
+        "name": "智谱 GLM Coding Plan",
+        "website": "https://open.bigmodel.cn",
+        "api_base": "https://open.bigmodel.cn/api/coding/paas/v4",
+        "quota_query_method": "控制台查看",
+        "packages": {
+          "lite": {"name": "Lite", "price_monthly": 20, "limits": {"per_month": 1000}},
+          "pro": {"name": "Pro", "price_monthly": 100, "limits": {"per_month": 5000}}
+        },
+        "supported_models": ["glm-5", "glm-4.7"]
+      },
+      "volcengine": {
+        "name": "火山方舟 Coding Plan",
+        "website": "https://www.volcengine.com/docs/82379",
+        "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+        "quota_query_method": "控制台查看",
+        "packages": {
+          "lite": {"name": "Lite", "price_first_month": 9.9, "price_monthly": 40, "limits": {"per_5_hours": 1200}},
+          "pro": {"name": "Pro", "price_first_month": 49.9, "price_monthly": 200, "limits": {"per_5_hours": 6000}}
+        },
+        "supported_models": ["DeepSeek-V3.2", "Doubao-Seed-Code", "GLM-4.7"]
+      },
+      "deepseek": {
+        "name": "DeepSeek API",
+        "website": "https://platform.deepseek.com",
+        "api_base": "https://api.deepseek.com",
+        "quota_query_endpoint": "/user/balance",
+        "quota_query_method": "API",
+        "quota_response_field": "balance_infos",
+        "packages": null,
+        "pricing": {"deepseek-chat": {"input": 0.27, "output": 1.1, "unit": "USD/MTok"}},
+        "supported_models": ["deepseek-chat", "deepseek-reasoner"],
+        "note": "按量付费模式"
+      }
+    }
+  },
+  "last_updated": "2026-03-01T12:00:00Z"
+}

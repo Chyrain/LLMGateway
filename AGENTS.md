@@ -271,6 +271,113 @@ A: 检查端口占用，确认 `.env` 配置正确，查看 `docker compose logs
 
 ---
 
+## 七、厂商模型配置
+
+### 7.1 配置文件位置
+
+| 文件 | 说明 |
+|------|------|
+| `backend/config/vendors.json` | 统一厂商模型配置（JSON格式） |
+| `backend/config/vendor_config.py` | Python配置加载器 |
+| `frontend-react/src/pages/ModelConfig.jsx` | 前端厂商模板 |
+
+### 7.2 支持的厂商
+
+**国际厂商**: OpenAI, Anthropic Claude, Google Gemini, Mistral AI, Groq, Perplexity, xAI Grok
+
+**国内厂商**: 通义千问(含灵码Coding Plan), 智谱AI, 深度求索, 月之暗面Kimi, MiniMax, 讯飞星火, 腾讯混元, 字节豆包, 零一万物, 阶跃星辰
+
+**本地模型**: Ollama, vLLM, LM Studio
+
+### 7.3 添加新厂商
+
+1. 编辑 `backend/config/vendors.json` 添加厂商配置
+2. 同步更新 `frontend-react/src/pages/ModelConfig.jsx` 的 VENDOR_CONFIGS
+3. 重启后端服务
+
+---
+
+## 八、Docker 部署与更新
+---
+
+## 七、厂商模型配置
+
+### 7.1 配置文件位置
+
+| 文件 | 说明 |
+|------|------|
+| `backend/config/vendors.json` | 统一厂商模型配置（JSON格式） |
+| `backend/config/vendor_config.py` | Python配置加载器 |
+| `frontend-react/src/pages/ModelConfig.jsx` | 前端厂商模板 |
+
+### 7.2 支持的厂商
+
+**国际厂商**: OpenAI, Anthropic Claude, Google Gemini, Mistral AI, Groq, Perplexity, xAI Grok
+
+**国内厂商**: 通义千问(含灵码Coding Plan), 智谱AI, 深度求索, 月之暗面Kimi, MiniMax, 讯飞星火, 腾讯混元, 字节豆包, 零一万物, 阶跃星辰
+
+**本地模型**: Ollama, vLLM, LM Studio
+
+### 7.3 添加新厂商
+
+1. 编辑 `backend/config/vendors.json` 添加厂商配置
+2. 同步更新 `frontend-react/src/pages/ModelConfig.jsx` 的 VENDOR_CONFIGS
+3. 重启后端服务
+
+---
+
+## 八、Docker 部署与更新
+
+### 8.1 部署流程
+
+**完成代码修改后，必须重新构建并重启 Docker 服务：**
+
+```bash
+# 1. 进入项目根目录
+cd /Users/chyrain/Desktop/workspace/AI/LLMGateway
+
+# 2. 重新构建镜像（不使用缓存）
+docker compose build --no-cache
+
+# 3. 重启所有服务
+docker compose down
+docker compose up -d
+
+# 4. 查看启动日志确认成功
+docker compose logs -f backend
+docker compose logs -f frontend-react
+```
+
+### 8.2 只重启特定服务
+
+```bash
+# 只重启后端
+docker compose restart backend
+
+# 只重启 React 前端
+docker compose restart frontend-react
+
+# 只重启 Vue 前端
+docker compose restart frontend
+```
+
+### 8.3 验证部署
+
+```bash
+# 检查所有服务状态
+docker compose ps
+
+# 访问测试
+curl http://localhost:88/api/models  # React 前端 API
+curl http://localhost/api/models     # Vue 前端 API (Nginx 代理)
+```
+
+---
+
+**最后更新**: 2026-03-01  
+**适用版本**: LLMGateway v1.0+
+
+
 ## 七、Docker 部署与更新
 
 ### 7.1 部署流程
