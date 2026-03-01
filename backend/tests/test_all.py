@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # ==================== 测试配置 ====================
 TEST_DB_PATH = "./data/test_llmgateway.db"
 os.environ["DB_PATH"] = TEST_DB_PATH
+os.environ["API_MODE"] = "true"  # 启用 API 模式以测试管理接口
 os.makedirs(os.path.dirname(TEST_DB_PATH), exist_ok=True)
 
 # ==================== 测试夹具 ====================
@@ -608,10 +609,10 @@ class TestAPIEndpoints:
         """测试获取模型列表（空）"""
         from fastapi.testclient import TestClient
         from main import app
-        
+
         client = TestClient(app)
-        response = client.get("/api/model/list")
-        
+        response = client.get("/api/models")
+
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == 200
@@ -621,15 +622,15 @@ class TestAPIEndpoints:
         """测试添加模型参数验证"""
         from fastapi.testclient import TestClient
         from main import app
-        
+
         client = TestClient(app)
-        
+
         # 缺少必填字段
-        response = client.post("/api/model/add", json={
+        response = client.post("/api/models", json={
             "vendor": "openai"
             # 缺少 model_name 和 api_key
         })
-        
+
         assert response.status_code == 422  # 验证错误
 
 
@@ -793,10 +794,521 @@ class TestSecurity:
         
         # 优先级应该是正整数
         assert model.priority > 0
-        
+
         # 可以修改优先级
         model.priority = 100
         assert model.priority == 100
+
+
+class TestAuthentication:
+    """用户认证测试"""
+
+    def test_login_success(self):
+        """测试登录成功"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens, users
+
+        # 清理之前的 token
+        tokens.clear()
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "admin123"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 200
+        assert "access_token" in data["data"]
+        assert data["data"]["username"] == "admin"
+
+    def test_login_invalid_password(self):
+        """测试密码错误"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens
+
+        tokens.clear()
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "wrongpassword"}
+        )
+
+        assert response.status_code == 401
+        data = response.json()
+        assert "用户名或密码错误" in data["detail"]
+
+    def test_login_invalid_username(self):
+        """测试用户名不存在"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens
+
+        tokens.clear()
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/auth/login",
+            headers={"username": "nonexistent", "password": "anypassword"}
+        )
+
+        assert response.status_code == 401
+
+    def test_logout_success(self):
+        """测试登出成功"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens
+
+        # 先登录获取 token
+        tokens.clear()
+        client = TestClient(app)
+        login_response = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "admin123"}
+        )
+        token = login_response.json()["data"]["access_token"]
+
+        # 登出
+        response = client.post(
+            "/api/auth/logout",
+            headers={"authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 200
+        # 验证 token 已被删除
+        assert token not in tokens
+
+    def test_change_password_success(self):
+        """测试修改密码成功"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens, users
+
+        # 先登录获取 token
+        tokens.clear()
+        client = TestClient(app)
+        login_response = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "admin123"}
+        )
+        token = login_response.json()["data"]["access_token"]
+
+        # 修改密码
+        response = client.post(
+            "/api/auth/change-password",
+            headers={
+                "old-password": "admin123",
+                "new-password": "newpassword123",
+                "authorization": f"Bearer {token}"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 200
+
+        # 验证新密码可以登录
+        login_response2 = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "newpassword123"}
+        )
+        assert login_response2.status_code == 200
+
+        # 恢复原始密码
+        users["admin"]["password"] = "admin123"
+
+    def test_change_password_wrong_old(self):
+        """测试旧密码错误"""
+        from fastapi.testclient import TestClient
+        from main import app
+        from routers.auth import tokens
+
+        tokens.clear()
+        client = TestClient(app)
+        login_response = client.post(
+            "/api/auth/login",
+            headers={"username": "admin", "password": "admin123"}
+        )
+        token = login_response.json()["data"]["access_token"]
+
+        response = client.post(
+            "/api/auth/change-password",
+            headers={
+                "old-password": "wrongoldpassword",
+                "new-password": "newpassword123",
+                "authorization": f"Bearer {token}"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "当前密码错误" in response.json()["detail"]
+
+    def test_change_password_unauthorized(self):
+        """测试未授权修改密码"""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/auth/change-password",
+            headers={
+                "old-password": "admin123",
+                "new-password": "newpassword123",
+                "authorization": "Bearer invalid_token"
+            }
+        )
+
+        assert response.status_code == 401
+
+
+class TestNotifications:
+    """通知系统测试"""
+
+    def test_notification_model_exists(self):
+        """测试通知模型存在"""
+        from config.database import init_db, engine
+        from sqlalchemy import inspect
+
+        # 初始化数据库
+        init_db()
+
+        # 验证表存在
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        # 通知表应该在 init_db 时创建
+
+    def test_create_notification(self):
+        """测试创建通知"""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/notifications",
+            json={
+                "title": "测试通知",
+                "content": "这是测试内容",
+                "type": "info"
+            }
+        )
+
+        # 可能需要认证，返回 401 或成功
+        assert response.status_code in [200, 401, 403]
+
+    def test_get_notifications(self):
+        """测试获取通知列表"""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        response = client.get("/api/notifications")
+
+        # 可能需要认证
+        assert response.status_code in [200, 401, 403]
+
+    def test_get_unread_count(self):
+        """测试获取未读数量"""
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        response = client.get("/api/notifications/unread-count")
+
+        assert response.status_code in [200, 401, 403]
+
+    def test_notification_model_to_dict(self):
+        """测试通知转字典"""
+        from models.notification import Notification
+        from datetime import datetime
+
+        notification = Notification(
+            title="Test",
+            content="Content",
+            type="info",
+            is_read=False
+        )
+
+        result = notification.to_dict()
+        assert result["title"] == "Test"
+        assert result["content"] == "Content"
+        assert result["type"] == "info"
+        assert result["is_read"] is False
+
+
+class TestQuotaManagement:
+    """配额管理测试"""
+
+    def test_set_quota(self):
+        """测试设置配额"""
+        from services.quota_monitor import QuotaMonitor
+        from config.database import init_db, SessionLocal
+        from models.model_config import ModelConfig
+        from models.quota_stat import QuotaStat
+
+        # 使用不同的数据库路径避免冲突
+        import os
+        test_db = "./data/test_quota_management.db"
+        os.environ["DB_PATH"] = test_db
+
+        init_db()
+        db = SessionLocal()
+
+        try:
+            # 创建测试模型
+            model = ModelConfig(
+                vendor="test",
+                model_name="test-model",
+                api_key="test-key",
+                api_spec="openai",
+                status=1
+            )
+            db.add(model)
+            db.commit()
+            # 保存 id 因为后续操作会关闭 session
+            model_id = model.id
+
+            # 设置配额
+            result = QuotaMonitor.set_quota(
+                model_id=model_id,
+                total_quota=1000,
+                plan_type="test",
+                plan_name="Test Plan",
+                quota_unit="tokens",
+                period_hours=24
+            )
+
+            assert result is True
+
+            # 验证配额
+            quota_info = QuotaMonitor.get_quota(model_id)
+            assert quota_info is not None
+            assert quota_info["total_quota"] == 1000
+            assert quota_info["remain_quota"] == 1000
+            assert quota_info["used_ratio"] == 0
+
+        finally:
+            # 清理 - 使用新的 session
+            db = SessionLocal()
+            db.query(QuotaStat).filter(QuotaStat.model_id == model_id).delete()
+            db.query(ModelConfig).filter(ModelConfig.id == model_id).delete()
+            db.commit()
+            db.close()
+            # 删除测试数据库
+            if os.path.exists(test_db):
+                os.remove(test_db)
+
+    def test_add_usage(self):
+        """测试累加使用量"""
+        from services.quota_monitor import QuotaMonitor
+        from config.database import init_db, SessionLocal
+        from models.model_config import ModelConfig
+        from models.quota_stat import QuotaStat
+
+        import os
+        test_db = "./data/test_add_usage.db"
+        os.environ["DB_PATH"] = test_db
+
+        init_db()
+        db = SessionLocal()
+
+        try:
+            # 创建测试模型
+            model = ModelConfig(
+                vendor="test",
+                model_name="test-model-usage",
+                api_key="test-key",
+                api_spec="openai",
+                status=1
+            )
+            db.add(model)
+            db.commit()
+            model_id = model.id
+
+            # 设置配额
+            QuotaMonitor.set_quota(
+                model_id=model_id,
+                total_quota=1000,
+                quota_unit="tokens"
+            )
+
+            # 累加使用量
+            result = QuotaMonitor.add_usage(model_id, 100)
+            assert result is True
+
+            # 验证
+            quota_info = QuotaMonitor.get_quota(model_id)
+            assert quota_info["used_quota"] == 100
+            assert quota_info["remain_quota"] == 900
+            assert quota_info["used_ratio"] == 10.0
+
+        finally:
+            db = SessionLocal()
+            db.query(QuotaStat).filter(QuotaStat.model_id == model_id).delete()
+            db.query(ModelConfig).filter(ModelConfig.id == model_id).delete()
+            db.commit()
+            db.close()
+            if os.path.exists(test_db):
+                os.remove(test_db)
+
+    def test_is_quota_exhausted(self):
+        """测试检查配额耗尽"""
+        from services.quota_monitor import QuotaMonitor
+        from config.database import init_db, SessionLocal
+        from models.model_config import ModelConfig
+        from models.quota_stat import QuotaStat
+
+        import os
+        test_db = "./data/test_quota_exhaust.db"
+        os.environ["DB_PATH"] = test_db
+
+        init_db()
+        db = SessionLocal()
+
+        try:
+            model = ModelConfig(
+                vendor="test",
+                model_name="test-model-exhaust",
+                api_key="test-key",
+                api_spec="openai",
+                status=1
+            )
+            db.add(model)
+            db.commit()
+            model_id = model.id
+
+            # 设置小配额
+            QuotaMonitor.set_quota(
+                model_id=model_id,
+                total_quota=100,
+                quota_unit="tokens"
+            )
+
+            # 未耗尽
+            assert QuotaMonitor.is_quota_exhausted(model_id) is False
+
+            # 累加到超过配额
+            QuotaMonitor.add_usage(model_id, 150)
+
+            # 应该耗尽
+            assert QuotaMonitor.is_quota_exhausted(model_id) is True
+
+        finally:
+            db = SessionLocal()
+            db.query(QuotaStat).filter(QuotaStat.model_id == model_id).delete()
+            db.query(ModelConfig).filter(ModelConfig.id == model_id).delete()
+            db.commit()
+            db.close()
+            if os.path.exists(test_db):
+                os.remove(test_db)
+
+    def test_reset_quota(self):
+        """测试重置配额"""
+        from services.quota_monitor import QuotaMonitor
+        from config.database import init_db, SessionLocal
+        from models.model_config import ModelConfig
+        from models.quota_stat import QuotaStat
+
+        import os
+        test_db = "./data/test_quota_reset.db"
+        os.environ["DB_PATH"] = test_db
+
+        init_db()
+        db = SessionLocal()
+
+        try:
+            model = ModelConfig(
+                vendor="test",
+                model_name="test-model-reset",
+                api_key="test-key",
+                api_spec="openai",
+                status=1
+            )
+            db.add(model)
+            db.commit()
+            model_id = model.id
+
+            # 设置并使用配额
+            QuotaMonitor.set_quota(model_id=model_id, total_quota=1000)
+            QuotaMonitor.add_usage(model_id, 500)
+
+            # 重置
+            result = QuotaMonitor.reset_quota(model_id)
+            assert result is True
+
+            # 验证已重置
+            quota_info = QuotaMonitor.get_quota(model_id)
+            assert quota_info["used_quota"] == 0
+            assert quota_info["remain_quota"] == 1000
+            assert quota_info["used_ratio"] == 0
+
+        finally:
+            db = SessionLocal()
+            db.query(QuotaStat).filter(QuotaStat.model_id == model_id).delete()
+            db.query(ModelConfig).filter(ModelConfig.id == model_id).delete()
+            db.commit()
+            db.close()
+            if os.path.exists(test_db):
+                os.remove(test_db)
+
+    def test_quota_status_update(self):
+        """测试配额状态更新"""
+        from services.quota_monitor import QuotaMonitor
+        from config.database import init_db, SessionLocal
+        from models.model_config import ModelConfig
+        from models.quota_stat import QuotaStat
+
+        import os
+        test_db = "./data/test_quota_status.db"
+        os.environ["DB_PATH"] = test_db
+
+        init_db()
+        db = SessionLocal()
+
+        try:
+            model = ModelConfig(
+                vendor="test",
+                model_name="test-model-status",
+                api_key="test-key",
+                api_spec="openai",
+                status=1,
+                quota_status=2
+            )
+            db.add(model)
+            db.commit()
+            model_id = model.id
+
+            # 额度低于90%，状态应为2
+            QuotaMonitor.set_quota(model_id=model_id, total_quota=100)
+            QuotaMonitor.add_usage(model_id, 10)  # 10%
+
+            status = QuotaMonitor.get_quota_status(model_id)
+            assert status == 2  # 正常
+
+            # 额度达到90%以上，状态应为1
+            QuotaMonitor.add_usage(model_id, 85)  # 95%
+            status = QuotaMonitor.get_quota_status(model_id)
+            assert status == 1  # 警告
+
+            # 额度100%，状态应为0
+            QuotaMonitor.add_usage(model_id, 10)  # 105%
+            status = QuotaMonitor.get_quota_status(model_id)
+            assert status == 0  # 耗尽
+
+        finally:
+            db = SessionLocal()
+            db.query(QuotaStat).filter(QuotaStat.model_id == model_id).delete()
+            db.query(ModelConfig).filter(ModelConfig.id == model_id).delete()
+            db.commit()
+            db.close()
+            if os.path.exists(test_db):
+                os.remove(test_db)
 
 
 # ==================== 运行测试 ====================

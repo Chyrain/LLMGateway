@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Space, Select, DatePicker, Input, Radio, Drawer, message, Popconfirm } from 'antd';
-import { SearchOutlined, DeleteOutlined, DownloadOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Space, Select, DatePicker, Input, Radio, Drawer, message, Popconfirm, Collapse, Badge, Tooltip } from 'antd';
+import { SearchOutlined, DeleteOutlined, DownloadOutlined, ReloadOutlined, EyeOutlined, CodeOutlined, CopyOutlined } from '@ant-design/icons';
 import { logApi, modelApi } from '../services/api';
 import dayjs from 'dayjs';
+import JsonHighlight from '../components/JsonHighlight';
 
 const { RangePicker } = DatePicker;
 
@@ -104,6 +105,27 @@ const Logs = () => {
 
   const formatJson = (str) => {
     if (!str) return '-';
+    try {
+      const obj = typeof str === 'string' ? JSON.parse(str) : str;
+      return JSON.stringify(obj, null, 2);
+    } catch {
+      return str;
+    }
+  };
+
+  // 复制到剪贴板
+  const copyToClipboard = async (text, label = '内容') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(`${label}已复制到剪贴板`);
+    } catch {
+      message.error('复制失败');
+    }
+  };
+
+  // 获取可复制的 JSON 字符串
+  const getJsonString = (str) => {
+    if (!str) return '';
     try {
       const obj = typeof str === 'string' ? JSON.parse(str) : str;
       return JSON.stringify(obj, null, 2);
@@ -254,72 +276,183 @@ const Logs = () => {
       </Card>
 
       <Drawer
-        title="日志详情"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>日志详情</span>
+            {currentLog && (
+              <Tag color={getLogTypeColor(currentLog.log_type)} style={{ margin: 0 }}>
+                {getLogTypeName(currentLog.log_type)}
+              </Tag>
+            )}
+          </div>
+        }
         open={detailVisible}
         onClose={() => setDetailVisible(false)}
-        width={600}
+        width={720}
+        className="log-detail-drawer"
+        styles={{ body: { padding: '24px' } }}
       >
         {currentLog && (
-          <div>
-            <div className="detail-row">
-              <span className="label">日志ID:</span>
-              <span className="content">{currentLog.id}</span>
+          <div className="log-detail-content">
+            {/* 基本信息区域 */}
+            <div className="detail-section">
+              <div className="section-title">基本信息</div>
+              <div className="info-grid">
+                <div className="info-item">
+                  <span className="info-label">日志ID</span>
+                  <span className="info-value">{currentLog.id}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">时间</span>
+                  <span className="info-value">{currentLog.create_time}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">状态</span>
+                  <span className="info-value">
+                    {currentLog.status === 1 ?
+                      <Tag color="success">成功</Tag> :
+                      <Tag color="error">失败</Tag>
+                    }
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">模型ID</span>
+                  <span className="info-value">{currentLog.model_id}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">请求模型</span>
+                  <span className="info-value">{currentLog.request_model || '-'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">实际模型</span>
+                  <span className="info-value">{currentLog.actual_model || '-'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">耗时</span>
+                  <span className="info-value">
+                    <Badge status={currentLog.duration_ms < 1000 ? 'success' : currentLog.duration_ms < 5000 ? 'warning' : 'error'} />
+                    {currentLog.duration_ms ? `${currentLog.duration_ms.toFixed(0)} ms` : '-'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">客户端IP</span>
+                  <span className="info-value">{currentLog.client_ip || '-'}</span>
+                </div>
+              </div>
             </div>
-            <div className="detail-row">
-              <span className="label">时间:</span>
-              <span className="content">{currentLog.create_time}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">类型:</span>
-              <span className="content">
-                <Tag color={getLogTypeColor(currentLog.log_type)}>
-                  {getLogTypeName(currentLog.log_type)}
+
+            {/* Token 用量 */}
+            <div className="detail-section">
+              <div className="section-title">Token 用量</div>
+              <div className="token-tags">
+                <Tag color="blue" className="token-tag">
+                  <span className="token-label">Prompt</span>
+                  <span className="token-value">{currentLog.tokens_prompt || 0}</span>
                 </Tag>
-              </span>
+                <Tag color="green" className="token-tag">
+                  <span className="token-label">Completion</span>
+                  <span className="token-value">{currentLog.tokens_completion || 0}</span>
+                </Tag>
+                <Tag color="purple" className="token-tag">
+                  <span className="token-label">Total</span>
+                  <span className="token-value">{currentLog.tokens_total || 0}</span>
+                </Tag>
+              </div>
             </div>
-            <div className="detail-row">
-              <span className="label">状态:</span>
-              <span className="content">
-                {currentLog.status === 1 ?
-                  <Tag color="success">成功</Tag> :
-                  <Tag color="error">失败</Tag>
-                }
-              </span>
+
+            {/* 日志内容 */}
+            {currentLog.log_content && (
+              <div className="detail-section">
+                <div className="section-title">日志内容</div>
+                <pre className="content-block">
+                  {currentLog.log_content}
+                </pre>
+              </div>
+            )}
+
+            {/* 请求内容 - 默认展开 */}
+            <div className="detail-section">
+              <Collapse
+                defaultActiveKey={['1']}
+                ghost
+                className="json-collapse"
+                items={[
+                  {
+                    key: '1',
+                    label: (
+                      <div className="collapse-header">
+                        <CodeOutlined />
+                        <span>请求内容 (Request)</span>
+                        <Tag color="processing" className="collapse-tag">JSON</Tag>
+                        <Tooltip title="复制">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(getJsonString(currentLog.request_content), '请求内容');
+                            }}
+                            style={{ marginLeft: 8 }}
+                          />
+                        </Tooltip>
+                      </div>
+                    ),
+                    children: (
+                      <div className="json-wrapper">
+                        <JsonHighlight data={currentLog.request_content} style="light" />
+                      </div>
+                    )
+                  }
+                ]}
+              />
             </div>
-            <div className="detail-row">
-              <span className="label">模型ID:</span>
-              <span className="content">{currentLog.model_id}</span>
+
+            {/* 响应内容 - 默认展开 */}
+            <div className="detail-section">
+              <Collapse
+                defaultActiveKey={['2']}
+                ghost
+                className="json-collapse"
+                items={[
+                  {
+                    key: '2',
+                    label: (
+                      <div className="collapse-header">
+                        <CodeOutlined />
+                        <span>响应内容 (Response)</span>
+                        <Tag color="success" className="collapse-tag">JSON</Tag>
+                        <Tooltip title="复制">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(getJsonString(currentLog.response_content), '响应内容');
+                            }}
+                            style={{ marginLeft: 8 }}
+                          />
+                        </Tooltip>
+                      </div>
+                    ),
+                    children: (
+                      <div className="json-wrapper">
+                        <JsonHighlight data={currentLog.response_content} style="light" />
+                      </div>
+                    )
+                  }
+                ]}
+              />
             </div>
-            <div className="detail-row">
-              <span className="label">请求模型:</span>
-              <span className="content">{currentLog.request_model || '-'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">实际模型:</span>
-              <span className="content">{currentLog.actual_model || '-'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">内容:</span>
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {currentLog.log_content}
-              </pre>
-            </div>
-            <div className="detail-row">
-              <span className="label">请求内容:</span>
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflow: 'auto', background: '#f5f5f5', padding: '8px' }}>
-                {formatJson(currentLog.request_content)}
-              </pre>
-            </div>
-            <div className="detail-row">
-              <span className="label">响应内容:</span>
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflow: 'auto', background: '#f5f5f5', padding: '8px' }}>
-                {formatJson(currentLog.response_content)}
-              </pre>
-            </div>
+
+            {/* 错误信息 */}
             {currentLog.error_message && (
-              <div className="detail-row">
-                <span className="label">错误信息:</span>
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '200px', overflow: 'auto', background: '#fff1f0', padding: '8px', color: '#ff4d4f' }}>
+              <div className="detail-section error-section">
+                <div className="section-title" style={{ color: '#ff4d4f' }}>
+                  错误信息
+                </div>
+                <pre className="error-block">
                   {currentLog.error_message}
                 </pre>
               </div>

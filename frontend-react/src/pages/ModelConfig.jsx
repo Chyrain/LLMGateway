@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Table, Card, Button, Tag, Space, Input, Select, Modal, Form,
-  InputNumber, Switch, message, Popconfirm, Tooltip, Spin, Alert
+  InputNumber, Switch, message, Popconfirm, Tooltip, Spin, Alert, Divider
 } from 'antd';
 import {
   PlusOutlined, ApiOutlined, EditOutlined,
@@ -484,6 +484,15 @@ const ModelConfig = () => {
       dataIndex: 'priority'
     },
     {
+      title: '计划类型',
+      dataIndex: 'plan_type',
+      render: (planType, record) => (
+        record.is_coding_model === 1 ?
+          <Tag color="green">Coding</Tag> :
+          <Tag>{planType === 'coding' ? 'Coding' : planType === 'reasoning' ? '推理' : '默认'}</Tag>
+      )
+    },
+    {
       title: '操作',
       render: (_, record) => (
         <Space>
@@ -694,21 +703,45 @@ const ModelConfig = () => {
             />
           </Form.Item>
           
-          <Form.Item 
-            name="priority" 
+          <Form.Item
+            name="priority"
             label="优先级"
           >
-            <Input 
-              type="number" 
-              min={1} 
-              max={999} 
-              style={{ width: '100%' }} 
+            <Input
+              type="number"
+              min={1}
+              max={999}
+              style={{ width: '100%' }}
               placeholder="请输入优先级"
             />
           </Form.Item>
           <div className="form-tip" style={{ marginTop: -20, marginBottom: 16, color: '#999', fontSize: 12 }}>
             数字越小优先级越高
           </div>
+
+          <Divider orientation="left">配额设置</Divider>
+
+          <Form.Item
+            name="plan_type"
+            label="计划类型"
+          >
+            <Select placeholder="选择计划类型">
+              <Select.Option value="default">默认计划</Select.Option>
+              <Select.Option value="coding">Coding 计划</Select.Option>
+              <Select.Option value="reasoning">推理计划</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="is_coding_model"
+            label="Coding模型"
+            tooltip="开启后该模型被视为 Coding 专用模型"
+          >
+            <Switch
+              checkedChildren="是"
+              unCheckedChildren="否"
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

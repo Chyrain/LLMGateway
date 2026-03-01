@@ -74,9 +74,27 @@ export const modelApi = {
 
 // 额度统计相关
 export const quotaApi = {
+  // 获取所有配额
+  list: () => api.get('/quota/list'),
+  // 获取单个配额
+  get: (modelId) => api.get(`/quota/${modelId}`),
+  // 设置配额
+  set: (data) => api.post('/quota/set', data),
+  // 批量设置配额
+  batchSet: (data) => api.post('/quota/batch-set', data),
+  // 更新配额
+  update: (modelId, data) => api.put(`/quota/${modelId}`, data),
+  // 重置配额
+  reset: (modelId) => api.post(`/quota/${modelId}/reset`),
+  // 删除配额
+  delete: (modelId) => api.delete(`/quota/${modelId}`),
+  // 手动增加用量
+  addUsage: (modelId, tokens) => api.post(`/quota/${modelId}/add-usage`, null, { params: { tokens } }),
+  // 获取配额状态
+  getStatus: (modelId) => api.get(`/quota-status/${modelId}`),
+  // 旧接口兼容
   stat: (params) => api.get('/quota/stat', { params }),
   sync: (modelId) => api.post(`/quota/sync/${modelId}`),
-  update: (modelId, data) => api.put(`/quota/${modelId}`, data),
   history: (params) => api.get('/quota/history', { params })
 };
 

@@ -17,18 +17,56 @@ from datetime import datetime
 from config.database import SessionLocal
 from models.model_config import ModelConfig
 from models.operation_log import OperationLog
+from models.system_config import SystemConfig
 from services.gateway_core import GatewayCore
+from services.quota_monitor import QuotaMonitor
+from routers.config import config_store
 
 # 创建路由
 gateway_router = APIRouter(prefix="", tags=["网关接口"])
 
 
-# ==================== 请求模型 ====================
-class ChatMessage(BaseModel):
-    """聊天消息模型"""
-    role: str
-    content: str
+def verify_gateway_api_key(authorization: str) -> bool:
+    """验证网关 API Key（从数据库读取配置）"""
+    if not authorization or not authorization.startswith("Bearer "):
+        return False
 
+    api_key = authorization.replace("Bearer ", "")
+
+    # 从数据库读取配置的 API Key
+    db = SessionLocal()
+    try:
+        config = db.query(SystemConfig).filter(SystemConfig.config_key == "gateway_api_key").first()
+        expected_key = config.config_value if config else None
+
+        # 如果数据库没有配置，使用内存默认值作为后备
+        if not expected_key:
+            expected_key = config_store.get("gateway_api_key", "gtw_admin123")
+    finally:
+        db.close()
+
+    return api_key == expected_key
+
+
+# ==================== 请求模型 ====================
+class ContentPart(BaseModel):
+    """内容部分 - 支持文本或图片"""
+    type: str = "text"  # "text" 或 "image_url"
+    text: Optional[str] = None
+    image_url: Optional[dict] = None
+
+
+class ChatMessage(BaseModel):
+    """聊天消息模型 - 支持 Vision 图片"""
+    role: str
+    content: str | List[ContentPart]  # 支持纯文本或内容部分列表
+    name: Optional[str] = None
+    
+    model_config = ConfigDict(extra="allow")
+
+    def to_dict(self) -> dict:
+        """转换为字典，用于转发请求"""
+        return self.model_dump(exclude_none=True)
 
 class ChatCompletionRequest(BaseModel):
     """聊天完成请求模型"""
@@ -80,10 +118,8 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
 
     供第三方客户端检测可用的模型列表
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="缺少有效的API Key")
-
-    gateway_api_key = authorization.replace("Bearer ", "")
+    if not verify_gateway_api_key(authorization):
+        raise HTTPException(status_code=401, detail="API Key 无效")
 
     # 获取所有启用的模型
     db = SessionLocal()
@@ -115,6 +151,9 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
         )
 
         for model in models:
+            # 获取模型能力
+            capabilities = model.get_capabilities()
+            
             models_data.append(
                 {
                     "id": model.model_name,
@@ -123,6 +162,7 @@ async def list_models_v1(authorization: Optional[str] = Header(None)):
                     if model.create_time
                     else 0,
                     "owned_by": model.vendor,
+                    "capabilities": capabilities,
                 }
             )
 
@@ -144,6 +184,7 @@ async def _stream_with_logging(
     collected_content = []
     usage_data = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     error_message = None
+    full_response_json = {}  # 存储完整的响应JSON
 
     try:
         async for chunk in GatewayCore.stream_request(
@@ -155,6 +196,8 @@ async def _stream_with_logging(
             if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
                 try:
                     data = json.loads(chunk[6:])
+                    # 保存完整响应JSON（用于日志记录）
+                    full_response_json = data
 
                     # OpenAI 格式: choices[0].delta.content
                     choices = data.get("choices", [])
@@ -163,6 +206,10 @@ async def _stream_with_logging(
                         content = delta.get("content", "")
                         if content:
                             collected_content.append(content)
+                        # 提取 usage
+                        usage = data.get("usage")
+                        if usage:
+                            usage_data = usage
                     # Ollama 格式: message.content
                     elif "message" in data:
                         content = data.get("message", {}).get("content", "")
@@ -185,6 +232,9 @@ async def _stream_with_logging(
                 # 提取 messages
                 messages = request_data.get("messages", [])
                 response_content = "".join(collected_content)
+
+                # 使用完整响应JSON（包含 id, model, choices, usage 等）
+                response_json_str = json.dumps(full_response_json, ensure_ascii=False) if full_response_json else response_content
 
                 print(f"[DEBUG] 开始记录访问日志, model_id={model.id}, request_data={request_data}")
                 log = OperationLog(
@@ -209,7 +259,7 @@ async def _stream_with_logging(
                     actual_model=model.model_name,
                     vendor=model.vendor,
                     request_content=json.dumps(request_data, ensure_ascii=False),
-                    response_content=response_content[:5000],  # 限制长度
+                    response_content=response_json_str[:10000],  # 限制长度，使用完整JSON
                     tokens_prompt=usage_data.get("prompt_tokens", 0),
                     tokens_completion=usage_data.get("completion_tokens", 0),
                     tokens_total=usage_data.get("total_tokens", 0),
@@ -236,13 +286,12 @@ async def chat_completions(
     user_agent: Optional[str] = Header(None),
 ):
     """OpenAI兼容的Chat Completions接口，支持自动切换模型"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="缺少有效的API Key")
+    if not verify_gateway_api_key(authorization):
+        raise HTTPException(status_code=401, detail="API Key 无效")
 
     # 获取客户端IP
     client_ip = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else ""
 
-    gateway_api_key = authorization.replace("Bearer ", "")
     requested_model = request.model
     print(
         f"[DEBUG] requested_model: '{requested_model}', type: {type(requested_model)}"
@@ -265,6 +314,14 @@ async def chat_completions(
             .order_by(ModelConfig.priority)
             .all()
         )
+
+        # 将模型对象从 session 中分离，避免后续访问时 detached 错误
+        for model in available_models:
+            db.refresh(model)  # 确保所有属性都已加载
+        db.expunge_all()
+
+        # 过滤掉已耗尽的模型
+        available_models = QuotaMonitor.filter_available_models(available_models)
 
         if not available_models:
             # 记录无可用模型的错误日志
@@ -337,7 +394,7 @@ async def chat_completions(
 
                 request_data = {
                     "model": model.model_name,
-                    "messages": [m.model_dump() for m in request.messages],
+                    "messages": [m.to_dict() for m in request.messages],
                     "stream": request.stream,
                 }
 
@@ -383,6 +440,8 @@ async def chat_completions(
                 # 提取响应内容
                 response_content = choices[0].get("message", {}).get("content", "")
                 usage = response.get("usage", {})
+                # 使用完整响应JSON
+                response_json_str = json.dumps(response, ensure_ascii=False)
 
                 print(f"[DEBUG] 开始记录访问日志, model_id={model.id}, request_data={request_data}")
                 log = OperationLog(
@@ -407,7 +466,7 @@ async def chat_completions(
                     request_model=requested_model or "auto",
                     actual_model=model.model_name,
                     vendor=model.vendor,
-                    response_content=response_content[:5000],
+                    response_content=response_json_str[:10000],  # 使用完整JSON
                     tokens_prompt=usage.get("prompt_tokens", 0),
                     tokens_completion=usage.get("completion_tokens", 0),
                     tokens_total=usage.get("total_tokens", 0),
@@ -415,6 +474,9 @@ async def chat_completions(
                 )
                 db.add(log)
                 db.commit()
+
+                # 累加Token使用量
+                QuotaMonitor.add_usage_from_response(model.id, response)
 
                 print(
                     f"[SUCCESS] 模型响应成功: {model.vendor} - {model.model_name}, 耗时: {duration_ms:.2f}ms"
@@ -488,6 +550,7 @@ async def chat_completions(
 async def anthropic_messages(
     request: AnthropicMessageRequest,
     x_api_key: Optional[str] = Header(None, alias="x-api-key"),
+    authorization: Optional[str] = Header(None, alias="authorization"),
     anthropic_version: Optional[str] = Header("2023-06-01", alias="anthropic-version"),
     x_forwarded_for: Optional[str] = Header(None),
     user_agent: Optional[str] = Header(None),
@@ -504,11 +567,16 @@ async def anthropic_messages(
     - system: 系统提示
     - stop_sequences: 停止序列
     """
+    # 验证 API Key
+    if not x_api_key and not authorization:
+        raise HTTPException(status_code=401, detail="缺少 API Key")
+
+    # 验证 API Key 有效性
+    if authorization and not verify_gateway_api_key(authorization):
+        raise HTTPException(status_code=401, detail="无效的 API Key")
+
     # 获取 API Key
     api_key = x_api_key
-    if not api_key:
-        # 尝试从 Authorization header 获取
-        raise HTTPException(status_code=401, detail="缺少 API Key")
 
     # 获取客户端IP
     client_ip = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else ""
@@ -613,6 +681,8 @@ async def anthropic_messages(
                 duration_ms = (time.time() - start_time) * 1000
                 response_content = choices[0].get("message", {}).get("content", "")
                 usage = response.get("usage", {})
+                # 使用完整响应JSON
+                response_json_str = json.dumps(response, ensure_ascii=False)
 
                 # 记录日志
                 log = OperationLog(
@@ -635,13 +705,16 @@ async def anthropic_messages(
                     actual_model=model.model_name,
                     vendor=model.vendor,
                     request_content=json.dumps(request_data, ensure_ascii=False),
-                    response_content=response_content[:5000],
+                    response_content=response_json_str[:10000],  # 使用完整JSON
                     tokens_prompt=usage.get("prompt_tokens", 0),
                     tokens_completion=usage.get("completion_tokens", 0),
                     tokens_total=usage.get("total_tokens", 0),
                 )
                 db.add(log)
                 db.commit()
+
+                # 累加Token使用量
+                QuotaMonitor.add_usage_from_response(model.id, response)
 
                 # 转换为 Anthropic 响应格式
                 return {
@@ -721,6 +794,7 @@ async def _anthropic_stream_with_logging(
     collected_content = []
     usage_data = {"prompt_tokens": 0, "completion_tokens": 0}
     error_message = None
+    full_response_json = {}  # 存储完整的响应JSON
 
     try:
         async for chunk in GatewayCore.stream_request(
@@ -732,6 +806,8 @@ async def _anthropic_stream_with_logging(
             if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
                 try:
                     data = json.loads(chunk[6:])
+                    # 保存完整响应JSON
+                    full_response_json = data
                     choices = data.get("choices", [])
                     if choices:
                         delta = choices[0].get("delta", {})
@@ -749,6 +825,8 @@ async def _anthropic_stream_with_logging(
             response_time = datetime.now()
             duration_ms = (time.time() - start_time) * 1000
             response_content = "".join(collected_content)
+            # 使用完整响应JSON
+            response_json_str = json.dumps(full_response_json, ensure_ascii=False) if full_response_json else response_content
 
             db = SessionLocal()
             try:
@@ -771,7 +849,7 @@ async def _anthropic_stream_with_logging(
                     request_model=requested_model or "auto",
                     actual_model=model.model_name,
                     vendor=model.vendor,
-                    response_content=response_content[:5000],
+                    response_content=response_json_str[:10000],  # 使用完整JSON
                     tokens_prompt=usage_data.get("prompt_tokens", 0),
                     tokens_completion=usage_data.get("completion_tokens", 0),
                     tokens_total=usage_data.get("prompt_tokens", 0) + usage_data.get("completion_tokens", 0),

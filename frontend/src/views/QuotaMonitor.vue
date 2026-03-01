@@ -110,19 +110,41 @@
         </el-table-column>
         
         <el-table-column prop="model_name" label="模型" min-width="150" />
-        
-        <el-table-column label="总额度" width="150">
+
+        <el-table-column label="计划类型" width="120">
           <template #default="{ row }">
-            {{ formatQuota(row.total_quota) }}
+            <el-tag size="small" :type="getPlanTagType(row.plan_type)">
+              {{ getPlanTypeName(row.plan_type) }}
+            </el-tag>
           </template>
         </el-table-column>
-        
-        <el-table-column label="已用额度" width="150">
+
+        <el-table-column label="配额单位" width="100">
           <template #default="{ row }">
-            {{ formatQuota(row.used_quota) }}
+            <el-tag size="small" :type="row.quota_unit === 'prompts' ? 'warning' : 'info'">
+              {{ row.quota_unit === 'prompts' ? '请求次数' : 'Tokens' }}
+            </el-tag>
           </template>
         </el-table-column>
-        
+
+        <el-table-column label="周期" width="100">
+          <template #default="{ row }">
+            <span v-if="row.period_hours > 0">{{ row.period_hours }}小时</span>
+            <span v-else class="text-gray">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="已用/总额" width="150">
+          <template #default="{ row }">
+            <span v-if="row.quota_unit === 'prompts'">
+              {{ row.period_used || 0 }} / {{ row.total_quota }}
+            </span>
+            <span v-else>
+              {{ formatQuota(row.used_quota) }} / {{ formatQuota(row.total_quota) }}
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="剩余额度" width="150">
           <template #default="{ row }">
             {{ formatQuota(row.remain_quota) }}
@@ -192,23 +214,49 @@
     <el-dialog
       v-model="manualDialogVisible"
       title="手动录入额度"
-      width="400px"
+      width="450px"
     >
       <el-form :model="manualForm" label-width="100px">
         <el-form-item label="模型">
           <el-input :value="manualForm.model_name" disabled />
         </el-form-item>
+        <el-form-item label="计划类型">
+          <el-select v-model="manualForm.plan_type" style="width: 100%">
+            <el-option label="默认计划" value="default" />
+            <el-option label="Coding 计划" value="coding" />
+            <el-option label="推理计划" value="reasoning" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="配额单位">
+          <el-select v-model="manualForm.quota_unit" style="width: 100%">
+            <el-option label="Tokens" value="tokens" />
+            <el-option label="请求次数 (prompts)" value="prompts" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="周期(小时)" v-if="manualForm.quota_unit === 'prompts'">
+          <el-input-number
+            v-model="manualForm.period_hours"
+            :min="0"
+            :max="8760"
+            style="width: 100%"
+            placeholder="如: 5"
+          />
+          <div class="form-tip">0 表示无周期限制</div>
+        </el-form-item>
+        <el-form-item label="计划名称">
+          <el-input v-model="manualForm.plan_name" placeholder="如：MiniMax M2.5 Coding Plan" />
+        </el-form-item>
         <el-form-item label="总额度">
-          <el-input-number 
-            v-model="manualForm.total_quota" 
+          <el-input-number
+            v-model="manualForm.total_quota"
             :min="0"
             :precision="0"
             style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="已用额度">
-          <el-input-number 
-            v-model="manualForm.used_quota" 
+          <el-input-number
+            v-model="manualForm.used_quota"
             :min="0"
             :precision="0"
             style="width: 100%"
@@ -252,7 +300,11 @@ const manualForm = reactive({
   model_id: null,
   model_name: '',
   total_quota: 0,
-  used_quota: 0
+  used_quota: 0,
+  plan_type: 'default',
+  plan_name: '',
+  quota_unit: 'tokens',
+  period_hours: 0
 })
 
 // 计算属性
@@ -345,13 +397,31 @@ const getProgressStatus = (ratio) => {
   return 'success'
 }
 
+const getPlanTypeName = (planType) => {
+  const map = { default: '默认', coding: 'Coding', reasoning: '推理' }
+  return map[planType] || '默认'
+}
+
+const getPlanTagType = (planType) => {
+  const map = { default: 'info', coding: 'success', reasoning: 'warning' }
+  return map[planType] || 'info'
+}
+
 const fetchQuotaData = async () => {
   loading.value = true
   try {
-    const res = await quotaApi.stat()
+    // 使用新的配额列表 API
+    const res = await quotaApi.list()
     quotaList.value = res.data || []
   } catch (error) {
-    ElMessage.error('获取额度数据失败')
+    console.error('获取额度数据失败', error)
+    // 兼容旧 API
+    try {
+      const res = await quotaApi.stat()
+      quotaList.value = res.data || []
+    } catch (e) {
+      ElMessage.error('获取额度数据失败')
+    }
   } finally {
     loading.value = false
   }
@@ -379,35 +449,56 @@ const handleSync = async (row) => {
 }
 
 const handleSyncAll = async () => {
+  const supportedVendors = ['minimax'] // 支持自动同步的厂商
+  let successCount = 0
+
   for (const item of quotaList.value) {
-    try {
-      await quotaApi.sync(item.model_id)
-    } catch (error) {
-      console.error(`模型 ${item.model_name} 同步失败`)
+    if (supportedVendors.includes(item.vendor)) {
+      try {
+        await quotaApi.sync(item.model_id)
+        successCount++
+      } catch (error) {
+        console.error(`模型 ${item.model_name} 同步失败`)
+      }
     }
   }
-  ElMessage.success('全部同步完成')
+
+  if (successCount > 0) {
+    ElMessage.success(`同步成功 ${successCount} 个模型`)
+  } else {
+    ElMessage.info('暂无支持自动同步的模型')
+  }
   fetchQuotaData()
 }
 
 const handleManualUpdate = (row) => {
   manualForm.model_id = row.model_id
   manualForm.model_name = row.model_name
-  manualForm.total_quota = row.total_quota
-  manualForm.used_quota = row.used_quota
+  manualForm.total_quota = row.total_quota || 0
+  manualForm.used_quota = row.used_quota || 0
+  manualForm.plan_type = row.plan_type || 'default'
+  manualForm.plan_name = row.plan_name || ''
+  manualForm.quota_unit = row.quota_unit || 'tokens'
+  manualForm.period_hours = row.period_hours || 0
   manualDialogVisible.value = true
 }
 
 const handleManualSave = async () => {
   try {
-    await quotaApi.update(manualForm.model_id, {
+    // 使用新的设置配额 API
+    await quotaApi.set({
+      model_id: manualForm.model_id,
       total_quota: manualForm.total_quota,
-      used_quota: manualForm.used_quota
+      plan_type: manualForm.plan_type,
+      plan_name: manualForm.plan_name,
+      quota_unit: manualForm.quota_unit,
+      period_hours: manualForm.period_hours
     })
     ElMessage.success('保存成功')
     manualDialogVisible.value = false
     fetchQuotaData()
   } catch (error) {
+    console.error('保存失败', error)
     ElMessage.error('保存失败')
   }
 }

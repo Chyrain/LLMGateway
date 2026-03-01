@@ -27,6 +27,7 @@ from routers.notifications import notification_router
 from routers.stats import stats_router
 from routers.logs import logs_router
 from routers.config import config_router
+from routers.quota import quota_router
 
 
 # 判断运行模式
@@ -83,6 +84,8 @@ if API_MODE:
     app.include_router(logs_router)
     # 配置接口（模型配置、额度配置等）
     app.include_router(config_router)
+    # 配额管理接口
+    app.include_router(quota_router)
 
     # API 模式下也注册网关接口，供前端测试使用
     from routers.gateway import gateway_router
@@ -115,6 +118,7 @@ async def startup_event():
     """数据库迁移：添加新列"""
     db = SessionLocal()
     try:
+        # 迁移 model_config 表
         result = db.execute(text("PRAGMA table_info(model_config)"))
         columns = [row[1] for row in result.fetchall()]
 
@@ -126,6 +130,48 @@ async def startup_event():
             )
             db.commit()
             print("[INFO] 已添加 api_spec 列到 model_config 表")
+
+        # 添加 plan_type 和 is_coding_model 列
+        if "plan_type" not in columns:
+            db.execute(
+                text(
+                    "ALTER TABLE model_config ADD COLUMN plan_type VARCHAR(20) DEFAULT 'default'"
+                )
+            )
+            db.commit()
+            print("[INFO] 已添加 plan_type 列到 model_config 表")
+
+        if "is_coding_model" not in columns:
+            db.execute(
+                text(
+                    "ALTER TABLE model_config ADD COLUMN is_coding_model INTEGER DEFAULT 0"
+                )
+            )
+            db.commit()
+            print("[INFO] 已添加 is_coding_model 列到 model_config 表")
+
+        # 迁移 quota_stat 表
+        result = db.execute(text("PRAGMA table_info(quota_stat)"))
+        quota_columns = [row[1] for row in result.fetchall()]
+
+        if "plan_type" not in quota_columns:
+            db.execute(
+                text(
+                    "ALTER TABLE quota_stat ADD COLUMN plan_type VARCHAR(20) DEFAULT 'default'"
+                )
+            )
+            db.commit()
+            print("[INFO] 已添加 plan_type 列到 quota_stat 表")
+
+        if "plan_name" not in quota_columns:
+            db.execute(
+                text(
+                    "ALTER TABLE quota_stat ADD COLUMN plan_name VARCHAR(100) DEFAULT ''"
+                )
+            )
+            db.commit()
+            print("[INFO] 已添加 plan_name 列到 quota_stat 表")
+
     except Exception as e:
         print(f"[WARN] 数据库迁移检查: {e}")
     finally:
@@ -142,6 +188,8 @@ class AddModelRequest(BaseModel):
     api_spec: Optional[str] = "openai"
     params: Optional[Dict[str, Any]] = {}
     priority: Optional[int] = 100
+    plan_type: Optional[str] = "default"
+    is_coding_model: Optional[int] = 0
 
 
 class FetchModelsRequest(BaseModel):
@@ -159,6 +207,8 @@ class UpdateModelRequest(BaseModel):
     api_spec: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
     priority: Optional[int] = None
+    plan_type: Optional[str] = None
+    is_coding_model: Optional[int] = None
 
 
 # 仅在 API 模式下注册模型配置接口
@@ -186,6 +236,8 @@ if API_MODE:
                 "status": model.status,
                 "connect_status": model.connect_status,
                 "quota_status": model.quota_status,
+                "plan_type": model.plan_type,
+                "is_coding_model": model.is_coding_model,
                 "params": model.params,
                 "create_time": model.create_time.strftime("%Y-%m-%d %H:%M:%S")
                 if model.create_time
@@ -228,6 +280,8 @@ if API_MODE:
                     "status": m.status,
                     "connect_status": m.connect_status,
                     "quota_status": m.quota_status,
+                    "plan_type": m.plan_type,
+                    "is_coding_model": m.is_coding_model,
                     "create_time": m.create_time.strftime("%Y-%m-%d %H:%M:%S")
                     if m.create_time
                     else None,
@@ -269,6 +323,8 @@ if API_MODE:
             api_spec=request.api_spec or "openai",
             params=request.params or {},
             priority=request.priority,
+            plan_type=request.plan_type or "default",
+            is_coding_model=request.is_coding_model or 0,
         )
 
         db.add(model)
@@ -278,6 +334,8 @@ if API_MODE:
         # 创建额度记录
         quota = QuotaStat(
             model_id=model.id,
+            plan_type=request.plan_type or "default",
+            plan_name="",
             total_quota=0,
             used_quota=0,
             remain_quota=0,
@@ -409,6 +467,10 @@ if API_MODE:
             model.params = request.params
         if request.priority is not None:
             model.priority = request.priority
+        if request.plan_type is not None:
+            model.plan_type = request.plan_type
+        if request.is_coding_model is not None:
+            model.is_coding_model = request.is_coding_model
 
         db.commit()
         db.refresh(model)

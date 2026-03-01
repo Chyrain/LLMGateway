@@ -80,7 +80,14 @@
         </el-table-column>
         
         <el-table-column prop="priority" label="优先级" width="80" />
-        
+
+        <el-table-column label="计划类型" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_coding_model" type="success" size="small">Coding</el-tag>
+            <el-tag v-else type="info" size="small">{{ getPlanTypeName(row.plan_type) }}</el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button-group>
@@ -182,6 +189,21 @@
           <el-input-number v-model="formData.priority" :min="1" :max="999" />
           <span class="form-tip">数字越小优先级越高</span>
         </el-form-item>
+
+        <el-divider>配额设置</el-divider>
+
+        <el-form-item label="计划类型">
+          <el-select v-model="formData.plan_type" style="width: 100%">
+            <el-option label="默认计划" value="default" />
+            <el-option label="Coding 计划" value="coding" />
+            <el-option label="推理计划" value="reasoning" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Coding模型">
+          <el-switch v-model="formData.is_coding_model" :active-value="1" :inactive-value="0" />
+          <span class="form-tip">开启后该模型被视为 Coding 专用模型</span>
+        </el-form-item>
       </el-form>
       
       <template #footer>
@@ -226,7 +248,9 @@ const formData = reactive({
   api_base: '',
   temperature: 0.7,
   max_tokens: 2048,
-  priority: 100
+  priority: 100,
+  plan_type: 'default',
+  is_coding_model: 0
 })
 
 const formRules = {
@@ -277,6 +301,11 @@ const getQuotaStatus = (status) => {
 const getQuotaTagType = (status) => {
   const map = { 0: 'danger', 1: 'warning', 2: 'success' }
   return map[status] || 'info'
+}
+
+const getPlanTypeName = (planType) => {
+  const map = { default: '默认', coding: 'Coding', reasoning: '推理' }
+  return map[planType] || '默认'
 }
 
 const fetchData = async () => {
@@ -341,7 +370,9 @@ const handleEdit = (row) => {
     api_base: row.api_base || '',
     temperature: row.params?.temperature || 0.7,
     max_tokens: row.params?.max_tokens || 2048,
-    priority: row.priority
+    priority: row.priority,
+    plan_type: row.plan_type || 'default',
+    is_coding_model: row.is_coding_model || 0
   })
   dialogVisible.value = true
 }

@@ -310,7 +310,7 @@ class GatewayCore:
         config = cls.VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接使用标准格式
-        if config.get("openai_compatible"):
+        if config.get("openai_compatible") or config.get("api_spec") == "openai":
             return request_data
 
         if vendor == "gemini":
@@ -318,6 +318,9 @@ class GatewayCore:
         elif vendor == "claude":
             return cls._build_claude_request(request_data)
         elif vendor == "qwen":
+            # qwen 且 api_spec 为 openai 时使用标准格式
+            if config.get("api_spec") == "openai":
+                return request_data
             return cls._build_qwen_request(request_data)
         elif vendor in ["qwen_official"]:
             return cls._build_qwen_official_request(request_data)
@@ -325,7 +328,6 @@ class GatewayCore:
             return cls._build_spark_request(request_data)
 
         return base_request
-
     @classmethod
     def _build_gemini_request(cls, request_data: Dict) -> Dict:
         """构建 Gemini 请求体"""
@@ -1047,13 +1049,40 @@ class GatewayCore:
                 "messages": [{"role": "user", "content": "Hi"}],
                 "options": {"num_predict": 10},
             }
-        else:
+        elif vendor == "qwen_official":
+            # Qwen 官方 API 使用 input.messages 格式
             return {
                 "model": use_model_name,
-                "messages": [{"role": "user", "content": "Hi"}],
-                "max_tokens": 10,
+                "input": {
+                    "messages": [{"role": "user", "content": "Hi"}]
+                },
+                "parameters": {
+                    "result_format": "message",
+                    "max_output_tokens": 10,
+                },
             }
-
+        elif vendor == "qwen":
+            # 检查 api_spec，如果是 openai 则使用标准格式
+            config = cls.VENDOR_CONFIGS.get(vendor, {})
+            if config.get("api_spec") == "openai":
+                # OpenAI 兼容模式使用标准 messages 格式
+                return {
+                    "model": use_model_name,
+                    "messages": [{"role": "user", "content": "Hi"}],
+                    "max_tokens": 10,
+                }
+            else:
+                # 旧版 input 格式用于非兼容模式
+                return {
+                    "model": use_model_name,
+                    "input": {
+                        "messages": [{"role": "user", "content": "Hi"}]
+                    },
+                    "parameters": {
+                        "result_format": "message",
+                        "max_tokens": 10,
+                    },
+                }
     @classmethod
     def _map_params(cls, vendor: str, request_data: Dict) -> Dict:
         """参数映射 - 将OpenAI参数转换为目标厂商格式"""
