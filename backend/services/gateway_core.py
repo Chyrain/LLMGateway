@@ -102,7 +102,7 @@ class GatewayCore:
                 base_request[param] = request_data[param]
 
         # 厂商特定处理
-        config = cls.VENDOR_CONFIGS.get(vendor, {})
+        config = VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接使用标准格式
         if config.get("openai_compatible") or config.get("api_spec") == "openai":
@@ -325,7 +325,7 @@ class GatewayCore:
                 )
                 return False
 
-            config = cls.VENDOR_CONFIGS.get(vendor, {})
+            config = VENDOR_CONFIGS.get(vendor, {})
             headers = cls._build_headers(vendor, api_key, config)
 
             test_request = cls._build_test_request(vendor, model_name)
@@ -372,7 +372,7 @@ class GatewayCore:
                     "models": [],
                 }
 
-            config = cls.VENDOR_CONFIGS.get(vendor, {})
+            config = VENDOR_CONFIGS.get(vendor, {})
 
             # 对于有标准接口的厂商，尝试调用API获取
             if vendor == "openai":
@@ -715,7 +715,7 @@ class GatewayCore:
             f"[DEBUG] sync_request: vendor={vendor}, api_base={api_base}, api_path={api_path}, api_key={api_key[:20] if api_key else None}..."
         )
 
-        config = cls.VENDOR_CONFIGS.get(vendor, {})
+        config = VENDOR_CONFIGS.get(vendor, {})
         headers = cls._build_headers(vendor, api_key, config)
 
         # 参数映射
@@ -757,7 +757,7 @@ class GatewayCore:
         api_path: str = None,
     ) -> AsyncGenerator[str, None]:
         """流式请求转发"""
-        config = cls.VENDOR_CONFIGS.get(vendor, {})
+        config = VENDOR_CONFIGS.get(vendor, {})
         headers = cls._build_headers(vendor, api_key, config)
 
         # 参数映射
@@ -858,7 +858,7 @@ class GatewayCore:
             }
         elif vendor == "qwen":
             # 检查 api_spec，如果是 openai 则使用标准格式
-            config = cls.VENDOR_CONFIGS.get(vendor, {})
+            config = VENDOR_CONFIGS.get(vendor, {})
             if config.get("api_spec") == "openai":
                 # OpenAI 兼容模式使用标准 messages 格式
                 return {
@@ -891,7 +891,7 @@ class GatewayCore:
         )
         # 响应标准化 - 将厂商响应转换为OpenAI格式
         # 根据厂商使用特定的解析器
-        config = cls.VENDOR_CONFIGS.get(vendor, {})
+        config = VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接返回原始响应
         if config.get("openai_compatible"):

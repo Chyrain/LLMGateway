@@ -5,6 +5,33 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.2.0] - 2026-03-01
+
+### 新增
+- 🔄 **统一厂商配置** - 新增 `config/vendors.json` 统一管理 24+ 厂商模型配置
+- 🎯 **模型能力自动检测** - 自动识别 Vision/Text/Audio 能力和上下文长度
+- 📦 **Coding Plan 支持** - 支持阿里云百炼、MiniMax、智谱、火山方舟等厂商的编程套餐
+- 🤖 **新增厂商**：
+  - 国际: Mistral AI, Groq, Perplexity, xAI Grok, Together AI, Cohere
+  - 国内: 深度求索(DeepSeek), 月之暗面(Kimi), 阶跃星辰, 腾讯混元, 字节豆包, 零一万物
+  - 本地: Ollama, vLLM, LM Studio
+
+### API 增强
+- ✅ `GET /api/models` 返回模型能力（vision/text/context_length）
+- ✅ `GET /api/coding-plans` 获取 Coding Plan 套餐信息
+- ✅ `GET /api/coding-plans/packages` 获取套餐价格信息
+- ✅ `POST /api/cron/sync-quota` 定时同步配额
+- ✅ `GET/POST/PUT/DELETE /api/coding-plans/configs` Coding Plan 配置 CRUD
+
+### 前端优化
+- 🎨 日志详情页美化（JSON 语法高亮、默认展开）
+- 📋 新增复制功能
+- 🔄 模型配置模板同步更新
+
+### 文档更新
+- 📝 AGENTS.md 中文版开发指南
+- 📚 厂商配置文档完善
+
 ## [1.0.0] - 2026-02-03
 
 ### 新增

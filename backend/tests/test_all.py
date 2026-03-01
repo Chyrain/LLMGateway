@@ -247,18 +247,19 @@ class TestGatewayCore:
     def test_vendor_configs_loaded(self):
         """测试厂商配置加载"""
         from services.gateway_core import GatewayCore
-        
-        assert "openai" in GatewayCore.VENDOR_CONFIGS
-        assert "qwen" in GatewayCore.VENDOR_CONFIGS
-        assert "zhipu" in GatewayCore.VENDOR_CONFIGS
-        assert "claude" in GatewayCore.VENDOR_CONFIGS
-        assert "gemini" in GatewayCore.VENDOR_CONFIGS
-    
+        from config.vendor_config import VENDOR_CONFIGS
+
+        assert "openai" in VENDOR_CONFIGS
+        assert "qwen" in VENDOR_CONFIGS
+        assert "zhipu" in VENDOR_CONFIGS
+        assert "claude" in VENDOR_CONFIGS
+        assert "gemini" in VENDOR_CONFIGS
+
     def test_vendor_config_structure(self):
         """测试厂商配置结构"""
-        from services.gateway_core import GatewayCore
-        
-        config = GatewayCore.VENDOR_CONFIGS["openai"]
+        from config.vendor_config import VENDOR_CONFIGS
+
+        config = VENDOR_CONFIGS["openai"]
         
         assert "api_base" in config
         assert "api_path" in config

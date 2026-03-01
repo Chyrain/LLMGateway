@@ -125,7 +125,6 @@ temp/
 uploads/
 upload/
 
-# ---------------- 其他 ----------------
 *.bak
 *.backup
 *.swp
@@ -133,3 +132,27 @@ upload/
 *.otf
 *.ttf
 .cache/
+
+# ---------------- AI 工具本地配置 ----------------
+# Claude 本地配置
+.claude/
+CLAUDE.md
+CLAUDE_*.md
+
+# OpenCode 本地配置
+.opencode/
+.sisyphus/
+
+# Cursor 配置
+.cursor/
+.cursorrules
+
+# MCP 配置
+.mcp/
+
+# Copilot 指令
+.github/copilot-instructions.md
+
+# 其他 Agent 配置
+AGENTS.md
+AGENT*.md
