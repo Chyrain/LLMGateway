@@ -104,8 +104,9 @@ class GatewayCore:
         # 厂商特定处理
         config = VENDOR_CONFIGS.get(vendor, {})
 
-        # 如果是 OpenAI 兼容模式，直接使用标准格式
+        # 如果是 OpenAI 兼容模式，直接使用标准格式（但仍然需要透传所有字段）
         if config.get("openai_compatible") or config.get("api_spec") == "openai":
+            # 对于 OpenAI 兼容模式，直接透传所有字段
             return request_data
 
         if vendor == "gemini":
@@ -113,9 +114,7 @@ class GatewayCore:
         elif vendor == "claude":
             return cls._build_claude_request(request_data)
         elif vendor == "qwen":
-            # qwen 且 api_spec 为 openai 时使用标准格式
-            if config.get("api_spec") == "openai":
-                return request_data
+            # qwen 使用 input 格式，需要转换
             return cls._build_qwen_request(request_data)
         elif vendor in ["qwen_official"]:
             return cls._build_qwen_official_request(request_data)
@@ -221,15 +220,31 @@ class GatewayCore:
     def _build_qwen_official_request(cls, request_data: Dict) -> Dict:
         """构建 Qwen 官方格式请求体"""
         messages = request_data.get("messages", [])
-
+        
+        # 处理消息：将 content 数组转换为字符串（兼容不支持 Vision 的 API）
+        processed_messages = []
+        for msg in messages:
+            content = msg.get("content", "")
+            # 如果 content 是数组（Vision 格式），提取文本部分
+            if isinstance(content, list):
+                # 只提取 text 部分，忽略 image_url
+                text_parts = [
+                    item.get("text", "")
+                    for item in content
+                    if isinstance(item, dict) and item.get("type") == "text"
+                ]
+                content = "\n".join(text_parts) if text_parts else ""
+            
+            processed_messages.append({
+                "role": msg.get("role", "user"),
+                "content": content
+            })
+        
         # 构建 Qwen 官方格式
         return {
             "model": request_data.get("model"),
             "input": {
-                "messages": [
-                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-                    for msg in messages
-                ]
+                "messages": processed_messages
             },
             "parameters": {
                 "result_format": "message",
