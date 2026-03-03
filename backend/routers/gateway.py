@@ -9,7 +9,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict
 import json
 import time
 from datetime import datetime
@@ -57,10 +57,12 @@ class ContentPart(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """聊天消息模型 - 支持 Vision 图片"""
+    """聊天消息模型 - 支持 Vision 图片和 Tool 调用"""
     role: str
-    content: str | List[ContentPart]  # 支持纯文本或内容部分列表
+    content: Optional[str | List[ContentPart]] = None  # 支持纯文本、内容部分列表或 None（tool 角色）
     name: Optional[str] = None
+    tool_calls: Optional[List[Dict]] = None  # assistant 角色的工具调用
+    tool_call_id: Optional[str] = None  # tool 角色的工具调用 ID
     
     model_config = ConfigDict(extra="allow")
 
@@ -69,14 +71,36 @@ class ChatMessage(BaseModel):
         return self.model_dump(exclude_none=True)
 
 class ChatCompletionRequest(BaseModel):
-    """聊天完成请求模型"""
+    """聊天完成请求模型 - 支持完整的 OpenAI API 字段"""
+    # 核心必选字段
     model: Optional[str] = None  # 可选，不传时自动使用最高优先级模型
     messages: List[ChatMessage]
+    
+    # 常用可选字段
     temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
+    top_p: Optional[float] = None
+    n: Optional[int] = None
     stream: Optional[bool] = False
-    model_config = ConfigDict(extra="allow")
-
+    stop: Optional[str | List[str]] = None
+    max_tokens: Optional[int] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    logit_bias: Optional[Dict[str, float]] = None
+    user: Optional[str] = None
+    
+    # Function/Tool 相关
+    response_format: Optional[Dict] = None
+    tools: Optional[List[Dict]] = None
+    tool_choice: Optional[str | Dict] = None
+    parallel_tool_calls: Optional[bool] = None
+    function_call: Optional[str | Dict] = None
+    
+    # 高级字段
+    seed: Optional[int] = None
+    logprobs: Optional[bool] = None
+    top_logprobs: Optional[int] = None
+    
+    model_config = ConfigDict(extra="allow")  # 允许透传任何其他字段
 
 # ==================== Anthropic 兼容请求模型 ====================
 class AnthropicMessage(BaseModel):
@@ -392,37 +416,38 @@ async def chat_completions(
             try:
                 print(f"[INFO] 使用模型: {model.vendor} - {model.model_name}")
 
+                # 构建请求数据 - 透传所有用户字段，只替换 model
                 request_data = {
                     "model": model.model_name,
                     "messages": [m.to_dict() for m in request.messages],
-                    "stream": request.stream,
                 }
-
-                if request.temperature is not None:
-                    request_data["temperature"] = request.temperature
-                if request.max_tokens is not None:
-                    request_data["max_tokens"] = request.max_tokens
-
-                if request.stream:
-                    # 流式响应使用包装器来记录日志
-                    return StreamingResponse(
-                        _stream_with_logging(
-                            model,
-                            request_data,
-                            requested_model,
-                            client_ip,
-                            user_agent,
-                        ),
-                        media_type="text/event-stream",
-                    )
-                else:
-                    response = await GatewayCore.sync_request(
-                        model.vendor,
-                        model.api_base,
-                        model.api_key,
-                        request_data,
-                        model.api_path,
-                    )
+                
+                # 透传所有可选字段
+                optional_fields = [
+                    "temperature", "top_p", "n", "stream", "stop", "max_tokens",
+                    "presence_penalty", "frequency_penalty", "logit_bias", "user",
+                    "response_format", "tools", "tool_choice", "seed", "logprobs",
+                    "top_logprobs", "parallel_tool_calls", "function_call"
+                ]
+                for field in optional_fields:
+                    value = getattr(request, field, None)
+                    if value is not None:
+                        request_data[field] = value
+                
+                # 透传任何其他额外字段
+                for key, value in request.model_extra.items():
+                    if key not in request_data and value is not None:
+                        request_data[key] = value
+                
+                print(f"[DEBUG] 最终请求数据：{request_data}")
+                
+                response = await GatewayCore.sync_request(
+                    model.vendor,
+                    model.api_base,
+                    model.api_key,
+                    request_data,
+                    model.api_path,
+                )
 
                 # 验证响应是否有效（必须有 choices 且有内容）
                 choices = response.get("choices", [])
