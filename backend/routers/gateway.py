@@ -465,10 +465,23 @@ async def chat_completions(
                 # 提取响应内容
                 response_content = choices[0].get("message", {}).get("content", "")
                 usage = response.get("usage", {})
-                # 使用完整响应JSON
-                response_json_str = json.dumps(response, ensure_ascii=False)
-
-                print(f"[DEBUG] 开始记录访问日志, model_id={model.id}, request_data={request_data}")
+                
+                # 构建完整的响应 JSON 用于日志记录
+                full_response = dict(response)  # 复制原始响应
+                # 确保 choices 完整
+                full_response["choices"] = [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": response_content,
+                        },
+                        "finish_reason": "stop"
+                    }
+                ]
+                response_json_str = json.dumps(full_response, ensure_ascii=False)
+                
+                print(f"[DEBUG] 开始记录访问日志, model_id={model.id}, response_content_len={len(response_json_str)}")
                 log = OperationLog(
                     log_type=1,  # 访问日志
                     model_id=model.id,
@@ -491,7 +504,7 @@ async def chat_completions(
                     request_model=requested_model or "auto",
                     actual_model=model.model_name,
                     vendor=model.vendor,
-                    response_content=response_json_str[:10000],  # 使用完整JSON
+                    response_content=response_json_str[:50000],  # 增加到 50KB
                     tokens_prompt=usage.get("prompt_tokens", 0),
                     tokens_completion=usage.get("completion_tokens", 0),
                     tokens_total=usage.get("total_tokens", 0),
