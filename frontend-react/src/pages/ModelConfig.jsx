@@ -19,8 +19,9 @@ const VENDOR_CONFIGS = {
     apiBase: 'https://api.openai.com/v1',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1', 'o1-mini', 'o3-mini'],
-    needApiKey: true
+    models: ['gpt-5.2', 'gpt-5.1', 'gpt-5', 'gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o3-pro', 'o4-mini', 'o1', 'o1-mini', 'o1-pro'],
+    needApiKey: true,
+    capabilities: {vision: true, audio: true, function_calling: true, reasoning: true}
   },
   anthropic: {
     name: 'Anthropic Claude',
@@ -35,8 +36,9 @@ const VENDOR_CONFIGS = {
     apiBase: 'https://generativelanguage.googleapis.com/v1beta',
     apiPath: '/models/gemini-2.5-pro:generateContent',
     apiSpec: 'gemini',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-    needApiKey: true
+    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    needApiKey: true,
+    capabilities: {vision: true, audio: true, function_calling: true}
   },
   mistral: {
     name: 'Mistral AI',
@@ -97,7 +99,7 @@ const VENDOR_CONFIGS = {
     apiBase: 'https://open.bigmodel.cn/api/paas/v4',
     apiPath: '/chat/completions',
     apiSpec: 'openai',
-    models: ['glm-5', 'glm-4-plus', 'glm-4-flash', 'glm-4', 'glm-4v-plus', 'glm-3-turbo'],
+    models: ['glm-4.5', 'glm-4.5-air', 'glm-4-flash', 'glm-4-flashx', 'glm-4-long', 'glm-4', 'cogview-4-flash'],
     needApiKey: true
   },
   deepseek: {
@@ -201,12 +203,14 @@ const VENDOR_CONFIGS = {
   }
 }
 
-// API 规范选项
+// API 规范选项 - 与 vendors.json 的 api_specs 保持同步
 const API_SPEC_OPTIONS = [
-  { value: 'openai', label: 'OpenAI 兼容 (推荐)', description: '标准 OpenAI API 格式' },
-  { value: 'anthropic', label: 'Anthropic Claude 兼容', description: 'Claude API 格式' },
-  { value: 'gemini', label: 'Google Gemini 兼容', description: 'Gemini API 格式' },
-  { value: 'custom', label: '完全自定义', description: '需要手动配置请求/响应格式' },
+  { value: 'openai', label: 'OpenAI 兼容 (推荐)', description: '标准 OpenAI API 格式', defaultPath: '/chat/completions' },
+  { value: 'anthropic', label: 'Anthropic Claude 兼容', description: 'Claude API 格式', defaultPath: '/messages' },
+  { value: 'gemini', label: 'Google Gemini 兼容', description: 'Gemini API 格式', defaultPath: '/models/{model}:generateContent' },
+  { value: 'qwen_official', label: '通义千问官方', description: '阿里云官方 API 格式', defaultPath: '/api/v1/services/aigc/text-generation/generation' },
+  { value: 'spark', label: '讯飞星火', description: '讯飞星火官方 API 格式', defaultPath: '/v3.5/chat' },
+  { value: 'custom', label: '完全自定义', description: '需要手动配置请求/响应格式', defaultPath: '' },
 ];
 
 // 厂商选项
@@ -268,21 +272,36 @@ const ModelConfig = () => {
     return vendorOptions.find(v => v.value === vendor)?.label || vendor;
   };
 
-  // 厂商选择变化时自动填充默认 API Base
+  // 厂商选择变化时自动填充默认 API 配置
   const handleVendorChange = (vendor) => {
     setSelectedVendor(vendor);
     setAvailableModels([]);
     setFetchError(null);
     const config = VENDOR_CONFIGS[vendor];
     
-    if (config && modalType === 'add') {
+    if (config) {
       // 自动填充 API Base、Path、Spec 和默认模型
-      form.setFieldsValue({
+      const formData = {
         api_base: config.apiBase,
         api_path: config.apiPath,
-        api_spec: config.apiSpec,
-        model_name: config.models[0] || ''
-      });
+        api_spec: config.apiSpec
+      };
+      
+      // 新增模式时填充默认模型
+      if (modalType === 'add' && config.models && config.models.length > 0) {
+        formData.model_name = config.models[0];
+      }
+      
+      form.setFieldsValue(formData);
+    }
+  };
+  
+  // API 规范变化时自动更新 API Path
+  const handleApiSpecChange = (apiSpec) => {
+    const specConfig = API_SPEC_OPTIONS.find(opt => opt.value === apiSpec);
+    if (specConfig && specConfig.defaultPath !== undefined) {
+      // 用户手动切换 API 规范时，使用对应的默认路径
+      form.setFieldsValue({ api_path: specConfig.defaultPath });
     }
   };
 
@@ -293,9 +312,9 @@ const ModelConfig = () => {
     setFetchError(null);
     setEditingRecord(null);
     form.resetFields();
+    // 设置默认值 - 使用 form.setFieldsValue 而不是 setEditingRecord 避免触发 useEffect
+    form.setFieldsValue({ priority: 100 });
     setModalVisible(true);
-    // 设置默认值
-    setEditingRecord({ priority: 100 });
   };
 
   const handleFetchModels = async () => {
@@ -685,12 +704,19 @@ const ModelConfig = () => {
           <Form.Item
             name="api_spec"
             label="API 规范"
-            tooltip="选择 API 规范类型，不同规范会影响请求/响应的参数映射"
+            tooltip="选择 API 规范类型，不同规范会影响请求/响应的参数映射。选择后会自动更新 API Path。"
             rules={[{ required: true, message: '请选择 API 规范' }]}
           >
             <Select
               placeholder="选择 API 规范"
               options={API_SPEC_OPTIONS}
+              onChange={handleApiSpecChange}
+              optionRender={(option) => (
+                <div>
+                  <div>{option.label}</div>
+                  <div style={{ fontSize: 12, color: '#999' }}>{option.data.description}</div>
+                </div>
+              )}
             />
           </Form.Item>
           

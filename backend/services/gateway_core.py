@@ -878,6 +878,13 @@ class GatewayCore:
                         "max_tokens": 10,
                     },
                 }
+        else:
+            # 默认使用 OpenAI 兼容格式
+            return {
+                "model": use_model_name,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "max_tokens": 10,
+            }
     @classmethod
     def _map_params(cls, vendor: str, request_data: Dict) -> Dict:
         """参数映射 - 将OpenAI参数转换为目标厂商格式"""
@@ -894,7 +901,7 @@ class GatewayCore:
         config = VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接返回原始响应
-        if config.get("openai_compatible"):
+        if config.get("openai_compatible") or config.get("api_spec") == "openai":
             return response_data
 
         if vendor == "gemini":

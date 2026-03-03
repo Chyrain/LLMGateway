@@ -252,7 +252,7 @@ class TestGatewayCore:
         assert "openai" in VENDOR_CONFIGS
         assert "qwen" in VENDOR_CONFIGS
         assert "zhipu" in VENDOR_CONFIGS
-        assert "claude" in VENDOR_CONFIGS
+        assert "anthropic" in VENDOR_CONFIGS
         assert "gemini" in VENDOR_CONFIGS
 
     def test_vendor_config_structure(self):
@@ -281,7 +281,7 @@ class TestGatewayCore:
         import httpx
         
         # 使用Mock避免真实网络请求
-        with patch.object(GatewayCore, 'VENDOR_CONFIGS', {
+        with patch('config.vendor_config.VENDOR_CONFIGS', {
             "test": {
                 "api_base": "https://api.test.com",
                 "api_path": "/v1/chat/completions",

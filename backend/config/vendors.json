@@ -13,14 +13,18 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "gpt-4o": {"context_length": 128000, "capabilities": ["text", "vision", "audio"], "vision": true},
-        "gpt-4o-mini": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
-        "gpt-4-turbo": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
-        "gpt-4": {"context_length": 8192, "capabilities": ["text"], "vision": false},
-        "gpt-3.5-turbo": {"context_length": 16385, "capabilities": ["text"], "vision": false},
-        "o1": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false},
-        "o1-mini": {"context_length": 128000, "capabilities": ["text", "reasoning"], "vision": false},
-        "o3-mini": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false}
+        "gpt-5.2": {"context_length": 128000, "capabilities": ["text", "vision", "audio", "function_calling"], "vision": true, "function_calling": true},
+        "gpt-5.1": {"context_length": 128000, "capabilities": ["text", "vision", "audio", "function_calling"], "vision": true, "function_calling": true},
+        "gpt-5": {"context_length": 128000, "capabilities": ["text", "vision", "audio", "function_calling"], "vision": true, "function_calling": true},
+        "gpt-4.1": {"context_length": 1048576, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "gpt-4o": {"context_length": 128000, "capabilities": ["text", "vision", "audio", "function_calling"], "vision": true, "function_calling": true},
+        "gpt-4o-mini": {"context_length": 128000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "o3": {"context_length": 200000, "capabilities": ["text", "reasoning", "function_calling"], "vision": false, "function_calling": true},
+        "o3-pro": {"context_length": 200000, "capabilities": ["text", "reasoning", "function_calling"], "vision": false, "function_calling": true},
+        "o4-mini": {"context_length": 200000, "capabilities": ["text", "reasoning", "function_calling"], "vision": false, "function_calling": true},
+        "o1": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false},
+        "o1-mini": {"context_length": 128000, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false},
+        "o1-pro": {"context_length": 200000, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false}
       }
     },
     "anthropic": {
@@ -35,11 +39,13 @@
       "extra_headers": {"anthropic-version": "2023-06-01"},
       "coding_plan": null,
       "models": {
-        "claude-sonnet-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
-        "claude-haiku-3-5-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
-        "claude-opus-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
-        "claude-3-5-sonnet-20241022": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
-        "claude-3-5-haiku-20241022": {"context_length": 200000, "capabilities": ["text"], "vision": false}
+        "claude-opus-4.5": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-opus-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-sonnet-4-20250514": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-haiku-3-5-20250514": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-3-7-sonnet-20250219": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-3-5-sonnet-20241022": {"context_length": 200000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "claude-3-5-haiku-20241022": {"context_length": 200000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true}
       }
     },
     "qwen": {
@@ -57,16 +63,19 @@
         "description": "通义灵码 Coding Plan"
       },
       "models": {
-        "qwen3-max": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "qwen3-plus": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "qwen3-flash": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "qwen-plus": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "qwen-turbo": {"context_length": 8192, "capabilities": ["text"], "vision": false},
-        "qwen-max": {"context_length": 32768, "capabilities": ["text"], "vision": false},
-        "qwen-long": {"context_length": 1048576, "capabilities": ["text"], "vision": false},
-        "qwen-vl-max": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true},
-        "qwen-vl-plus": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true},
-        "qwq-plus": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false}
+        "qwen3.5-max": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "qwen3.5-plus": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "qwen3.5-flash": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "qwen3-max": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen3-plus": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen3-flash": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen-plus": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen-turbo": {"context_length": 8192, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen-max": {"context_length": 32768, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "qwen-long": {"context_length": 1048576, "capabilities": ["text"], "vision": false, "function_calling": false},
+        "qwen-vl-max": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true, "function_calling": false},
+        "qwen-vl-plus": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true, "function_calling": false},
+        "qwq-plus": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false}
       }
     },
     "qwen_official": {
@@ -96,12 +105,13 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "glm-5": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true},
-        "glm-4-plus": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
-        "glm-4-flash": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
-        "glm-4": {"context_length": 128000, "capabilities": ["text", "vision"], "vision": true},
-        "glm-4v-plus": {"context_length": 16384, "capabilities": ["text", "vision"], "vision": true},
-        "glm-3-turbo": {"context_length": 8192, "capabilities": ["text"], "vision": false}
+        "glm-4.5": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "glm-4.5-air": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "glm-4-flash": {"context_length": 128000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "glm-4-flashx": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "glm-4-long": {"context_length": 1048576, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "glm-4": {"context_length": 128000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "cogview-4-flash": {"context_length": 8192, "capabilities": ["image_generation"], "vision": false, "function_calling": false}
       }
     },
     "deepseek": {
@@ -115,10 +125,12 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "deepseek-chat": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "deepseek-reasoner": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false},
-        "deepseek-v3": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "deepseek-r1": {"context_length": 65536, "capabilities": ["text", "reasoning"], "vision": false}
+        "deepseek-v3.5": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "deepseek-v3": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "deepseek-r1": {"context_length": 65536, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false},
+        "deepseek-r1-distill": {"context_length": 65536, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false},
+        "deepseek-chat": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "deepseek-coder": {"context_length": 131072, "capabilities": ["text", "code"], "vision": false, "function_calling": false}
       }
     },
     "moonshot": {
@@ -132,10 +144,11 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "moonshot-v1-8k": {"context_length": 8192, "capabilities": ["text"], "vision": false},
-        "moonshot-v1-32k": {"context_length": 32768, "capabilities": ["text"], "vision": false},
-        "moonshot-v1-128k": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "kimi-k2.5": {"context_length": 200000, "capabilities": ["text", "vision"], "vision": true}
+        "kimi-k2": {"context_length": 131072, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "kimi-k1.5": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "moonshot-v1-128k": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "moonshot-v1-32k": {"context_length": 32768, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "moonshot-v1-8k": {"context_length": 8192, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true}
       }
     },
     "minimax": {
@@ -182,8 +195,9 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "hunyuan-turbos-latest": {"context_length": 256000, "capabilities": ["text"], "vision": false},
-        "hunyuan-pro": {"context_length": 32000, "capabilities": ["text"], "vision": false}
+        "hunyuan-t1": {"context_length": 256000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "hunyuan-turbo": {"context_length": 256000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "hunyuan-large": {"context_length": 32000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true}
       }
     },
     "doubao": {
@@ -197,9 +211,11 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "doubao-pro-32k": {"context_length": 32000, "capabilities": ["text"], "vision": false},
-        "doubao-pro-128k": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "doubao-vision-pro": {"context_length": 32000, "capabilities": ["text", "vision"], "vision": true}
+        "doubao-1.5-pro-32k": {"context_length": 32768, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "doubao-1.5-pro-256k": {"context_length": 262144, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "doubao-pro-32k": {"context_length": 32000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "doubao-pro-128k": {"context_length": 131072, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "seed-1.5": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true}
       }
     },
     "yi": {
@@ -230,8 +246,9 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "step-1v-8k": {"context_length": 8192, "capabilities": ["text"], "vision": false},
-        "step-1v-32k": {"context_length": 32768, "capabilities": ["text"], "vision": false}
+        "step-2": {"context_length": 256000, "capabilities": ["text", "function_calling"], "vision": false, "function_calling": true},
+        "step-1v-32k": {"context_length": 32768, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "step-1v-8k": {"context_length": 8192, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true}
       }
     },
     "gemini": {
@@ -312,9 +329,10 @@
       "stream_support": true,
       "coding_plan": null,
       "models": {
-        "grok-3": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false},
-        "grok-3-mini": {"context_length": 131072, "capabilities": ["text"], "vision": false},
-        "grok-2-vision": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true}
+        "grok-4": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
+        "grok-3": {"context_length": 131072, "capabilities": ["text", "reasoning", "function_calling"], "vision": false, "function_calling": true},
+        "grok-3-mini": {"context_length": 131072, "capabilities": ["text", "reasoning"], "vision": false, "function_calling": false},
+        "grok-2-vision": {"context_length": 32768, "capabilities": ["text", "vision"], "vision": true, "function_calling": false}
       }
     },
     "ollama": {
