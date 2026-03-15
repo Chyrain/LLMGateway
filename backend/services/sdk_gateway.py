@@ -326,7 +326,7 @@ class SDKGateway:
             "stop", "max_tokens", "presence_penalty", "frequency_penalty",
             "logit_bias", "user", "seed", "logprobs", "top_logprobs",
             "response_format", "tools", "tool_choice", "parallel_tool_calls",
-            "function_call", "functions", "reasoning_effort"
+            "function_call", "functions", "reasoning_effort", "thinking"
         }
 
         clean = {}

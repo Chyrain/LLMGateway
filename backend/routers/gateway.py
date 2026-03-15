@@ -101,9 +101,10 @@ class ChatCompletionRequest(BaseModel):
     logprobs: Optional[bool] = None
     top_logprobs: Optional[int] = None
     
-    # Thinking/Reasoning 模式字段 (OpenAI o1/o3, DeepSeek R1 等)
+    # Thinking/Reasoning 模式字段 (OpenAI o1/o3, DeepSeek R1, MiniMax 等)
     reasoning_effort: Optional[str] = None  # low/medium/high (OpenAI o1)
-    
+    thinking: Optional[Dict] = None  # Thinking 模式配置 (DeepSeek R1, MiniMax 等)
+
     model_config = ConfigDict(extra="allow")  # 允许透传任何其他字段
 
 # ==================== Anthropic 兼容请求模型 ====================
@@ -460,7 +461,7 @@ async def chat_completions(
                     "presence_penalty", "frequency_penalty", "logit_bias", "user",
                     "response_format", "tools", "tool_choice", "seed", "logprobs",
                     "top_logprobs", "parallel_tool_calls", "function_call",
-                    "reasoning_effort"  # Thinking 模式 (OpenAI o1/o3)
+                    "reasoning_effort", "thinking"  # Thinking 模式 (OpenAI o1/o3, DeepSeek R1, MiniMax)
                 ]
                 for field in optional_fields:
                     value = getattr(request, field, None)
