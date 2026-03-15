@@ -1,0 +1,84 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+Dockerfile.prod
+docker-compose.yml
+docker-compose.prod.yml
+.dockerignore
+
+# Environment
+.env
+.env.example
+.env.prod
+.env.prod.example
+
+# Documentation
+*.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+AGENTS.md
+PROJECT_STRUCTURE.md
+docs/
+
+# Scripts
+deploy-to-nas.sh
+scripts/
+
+# Tests
+tests/
+*.test.js
+*.spec.js
+playwright.config.js
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.claude/
+
+# Build outputs (will be generated)
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime data
+runtime_data/
+data/
+
+# Test files
+debug_models.py
+fix_api_keys.py
+init_quota.py

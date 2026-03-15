@@ -1,0 +1,157 @@
+# LLMGateway All-in-One Dockerfile
+# 将后端和前端打包到一个容器中，减少资源占用
+
+# ==================== 阶段 1: 构建 Vue 前端 ====================
+FROM node:20-alpine as frontend-build
+
+WORKDIR /app/frontend
+
+# 使用 npm 镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend/ ./
+RUN npm run build
+
+# ==================== 阶段 2: 构建 React 前端 ====================
+FROM node:20-alpine as react-frontend-build
+
+WORKDIR /app/frontend-react
+
+# 使用 npm 镜像源
+RUN npm config set set registry https://registry.npmmirror.com
+
+COPY frontend-react/package*.json ./
+RUN npm install
+
+COPY frontend-react/ ./
+RUN npm run build
+
+# ==================== 阶段 3: 后端运行环境 ====================
+FROM python:3.11-slim
+
+# 使用阿里云镜像源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 Python 依赖
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+# 复制后端代码
+COPY backend/ ./
+
+# 复制 Vue 前端构建产物
+COPY --from=frontend-build /app/frontend/dist /usr/share/nginx/html/vue-frontend
+
+# 复制 React 前端构建产物
+COPY --from=react-frontend-build /app/frontend-react/dist /usr/share/nginx/html/react-frontend
+
+# 配置 Nginx - 用于前端服务
+RUN rm -f /etc/nginx/sites-enabled/default && cat > /etc/nginx/nginx.conf << 'NGINX_EOF'
+events { worker_connections 1024; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # 日志配置
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
+    error_log /var/log/nginx/error.log warn;
+
+    server {
+        listen 80;
+        server_name localhost;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Gzip 压缩
+        gzip on;
+        gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+        # Vue 前端 (端口 80)
+        location / {
+            root /usr/share/nginx/html/vue-frontend;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # React 前端 (端口 88 路径)
+        location /react/ {
+            alias /usr/share/nginx/html/react-frontend/;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # API 代理到后端
+        location /api/ {
+            proxy_pass http://127.0.0.1:8000/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 30s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+        }
+
+        # 网关接口代理
+        location /v1/ {
+            proxy_pass http://127.0.0.1:8080/v1/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+}
+NGINX_EOF
+
+# 创建目录
+RUN mkdir -p /app/logs /data
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# 暴露端口
+EXPOSE 80 88 8000 8080
+
+# 启动脚本
+COPY << 'STARTUP_EOF' /app/start.sh
+#!/bin/bash
+
+# 启动后端 API 服务（管理接口）
+export API_MODE=true
+export PORT=8000
+uvicorn main:app --host 0.0.0.0 --port 8000 &
+
+# 等待后端启动
+sleep 3
+
+# 启动网关服务
+export API_MODE=false
+export GATEWAY_MODE=true
+export PORT=8080
+uvicorn main:app --host 0.0.0.0 --port 8080 &
+
+# 启动 Nginx
+nginx -g "daemon off;"
+STARTUP_EOF
+
+RUN chmod +x /app/start.sh
+
+# 启动命令
+CMD ["/app/start.sh"]

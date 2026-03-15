@@ -391,8 +391,14 @@ class QuotaMonitor:
             db.close()
 
     @classmethod
-    def add_usage_from_response(cls, model_id: int, response_data: Dict) -> bool:
-        """从API响应中提取并累加使用量"""
+    def add_usage_from_response(cls, model_id: int, response_data: Dict, is_anthropic: bool = False) -> bool:
+        """从 API 响应中提取并累加使用量
+
+        Args:
+            model_id: 模型 ID
+            response_data: API 响应数据
+            is_anthropic: 是否为 Anthropic 格式响应（已废弃，自动检测）
+        """
         db = SessionLocal()
         try:
             quota = db.query(QuotaStat).filter(QuotaStat.model_id == model_id).first()
@@ -403,11 +409,24 @@ class QuotaMonitor:
             if quota.quota_unit == "prompts":
                 return cls.add_usage(model_id, 1)
             else:
-                usage = cls.calculate_usage("", response_data)
-                total_tokens = usage.get("total_tokens", 0)
+                # 自动检测响应格式并提取 usage
+                # Anthropic 格式：usage 在响应顶层，使用 input_tokens/output_tokens
+                # OpenAI 格式：usage 在响应顶层，使用 prompt_tokens/completion_tokens
+                usage = response_data.get("usage", {})
+
+                if not usage:
+                    return False
+
+                # 尝试 Anthropic 格式
+                total_tokens = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+
+                # 如果不是 Anthropic 格式，尝试 OpenAI 格式
+                if total_tokens == 0:
+                    total_tokens = usage.get("total_tokens", 0)
 
                 if total_tokens > 0:
                     return cls.add_usage(model_id, total_tokens)
+
             return False
         finally:
             db.close()

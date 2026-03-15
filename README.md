@@ -44,7 +44,9 @@
 
 ## 🚀 快速开始
 
-### 1. 环境准备
+### 方式一：本地 Docker 部署
+
+#### 1. 环境准备
 
 ```bash
 # Docker 和 Docker Compose
@@ -52,26 +54,42 @@ docker --version
 docker compose version
 ```
 
-### 2. 克隆项目
+#### 2. 克隆项目
 
 ```bash
 git clone https://github.com/Chyrain/LLMGateway.git
 cd LLMGateway
 ```
 
-### 3. 启动服务（推荐 Vue 版本）
+#### 3. 初始化配置
 
 ```bash
-docker compose up -d
+# 运行初始化脚本生成配置文件和加密密钥
+chmod +x scripts/init.sh
+./scripts/init.sh
 ```
 
-### 3. 启动服务（React 版本）
+#### 4. 启动服务
 
 ```bash
-docker compose up -d frontend-react
+# 标准模式（多容器）
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+# 或全合一模式（节省资源，推荐 NAS 使用）
+docker compose -f docker-compose.all-in-one.yml --env-file .env.prod up -d --build
 ```
 
-### 4. 访问管理后台
+### 方式二：NAS 一键部署
+
+```bash
+# 执行一键部署脚本
+chmod +x deploy-to-nas.sh
+./deploy-to-nas.sh -h 192.168.1.2 -u chyrain
+```
+
+> 📄 详细部署文档请查看 [DEPLOY.md](DEPLOY.md)
+
+### 访问管理后台
 
 | 前端版本 | 地址 | 说明 |
 |---------|------|------|

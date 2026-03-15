@@ -1,0 +1,30 @@
+# LLMGateway NAS Docker Compose 配置
+services:
+  # 后端 API 服务（管理后台 + 网关）
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: llmgateway-backend
+    ports:
+      - "${API_PORT:-7860}:8000"
+      - "${GATEWAY_PORT:-7861}:8080"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/data/llmgateway.db
+      - ENCRYPT_KEY=${ENCRYPT_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SWITCH_THRESHOLD=${SWITCH_THRESHOLD:-99}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-10}
+      - API_MODE=true
+      - PORT=8000
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - llmgateway-network
+
+networks:
+  llmgateway-network:
+    driver: bridge

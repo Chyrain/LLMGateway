@@ -302,17 +302,19 @@ if API_MODE:
     @app.post("/api/models")
     async def add_model(request: AddModelRequest, db: SessionLocal = Depends(get_db)):
         """新增模型配置"""
+        # 唯一性校验：同一厂商 + 同一模型名称 + 同一 API 格式 视为重复
         exist = (
             db.query(ModelConfig)
             .filter(
                 ModelConfig.vendor == request.vendor,
                 ModelConfig.model_name == request.model_name,
+                ModelConfig.api_spec == request.api_spec,
             )
             .first()
         )
 
         if exist:
-            raise HTTPException(status_code=400, detail="模型配置已存在")
+            raise HTTPException(status_code=400, detail="模型配置已存在（同一厂商、模型名称和 API 格式只能配置一次）")
 
         model = ModelConfig(
             vendor=request.vendor,
@@ -450,6 +452,26 @@ if API_MODE:
 
         if not model:
             raise HTTPException(status_code=404, detail="模型不存在")
+
+        # 检查是否有重复：如果修改了 vendor/model_name/api_spec，需要检查是否与其他记录冲突
+        if request.vendor is not None or request.model_name is not None or request.api_spec is not None:
+            check_vendor = request.vendor if request.vendor is not None else model.vendor
+            check_model_name = request.model_name if request.model_name is not None else model.model_name
+            check_api_spec = request.api_spec if request.api_spec is not None else model.api_spec
+
+            exist = (
+                db.query(ModelConfig)
+                .filter(
+                    ModelConfig.vendor == check_vendor,
+                    ModelConfig.model_name == check_model_name,
+                    ModelConfig.api_spec == check_api_spec,
+                    ModelConfig.id != model_id,  # 排除当前记录
+                )
+                .first()
+            )
+
+            if exist:
+                raise HTTPException(status_code=400, detail="模型配置已存在（同一厂商、模型名称和 API 格式只能配置一次）")
 
         # 更新字段（如果提供了新值）
         if request.vendor is not None:

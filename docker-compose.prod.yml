@@ -1,0 +1,95 @@
+# LLMGateway 生产环境 Docker Compose 配置
+# 适用于 NAS 服务器部署
+
+services:
+  # 后端 API 服务（管理后台）
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: llmgateway-backend
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/data/llmgateway.db
+      - ENCRYPT_KEY=${ENCRYPT_KEY}
+      - GATEWAY_PORT=${GATEWAY_PORT:-8080}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SWITCH_THRESHOLD=${SWITCH_THRESHOLD:-99}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-10}
+      - API_MODE=true
+    volumes:
+      - ./data:/data
+      - ./logs/backend:/app/logs
+    restart: unless-stopped
+    networks:
+      - llmgateway-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # 网关服务（LLM 转发）
+  gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: llmgateway-gateway
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/data/llmgateway.db
+      - ENCRYPT_KEY=${ENCRYPT_KEY}
+      - PORT=8080
+      - GATEWAY_MODE=true
+    volumes:
+      - ./data:/data
+      - ./logs/gateway:/app/logs
+    restart: unless-stopped
+    networks:
+      - llmgateway-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Vue 前端管理平台 (端口 80)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: llmgateway-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    restart: unless-stopped
+    networks:
+      - llmgateway-network
+    depends_on:
+      - backend
+
+  # React 前端管理平台 (端口 88)
+  frontend-react:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+      args:
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%s)}
+    container_name: llmgateway-frontend-react
+    ports:
+      - "${REACT_FRONTEND_PORT:-88}:80"
+    restart: unless-stopped
+    networks:
+      - llmgateway-network
+    depends_on:
+      - backend
+
+networks:
+  llmgateway-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:
