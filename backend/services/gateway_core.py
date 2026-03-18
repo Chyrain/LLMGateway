@@ -105,10 +105,6 @@ class GatewayCore:
         config = VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接使用标准格式（但仍然需要透传所有字段）
-        # MiniMax 需要特殊处理 tool_call 格式转换
-        if vendor == "minimax":
-            return cls._parse_minimax_response(response_data)
-
         if config.get("openai_compatible") or config.get("api_spec") == "openai":
             # 对于 OpenAI 兼容模式，直接透传所有字段
             return request_data
@@ -918,6 +914,10 @@ class GatewayCore:
         # 响应标准化 - 将厂商响应转换为OpenAI格式
         # 根据厂商使用特定的解析器
         config = VENDOR_CONFIGS.get(vendor, {})
+
+        # MiniMax 需要特殊处理 tool_call 格式转换
+        if vendor == "minimax":
+            return cls._parse_minimax_response(response_data)
 
         # 如果是 OpenAI 兼容模式，直接返回原始响应
         if config.get("openai_compatible") or config.get("api_spec") == "openai":
