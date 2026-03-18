@@ -978,21 +978,55 @@ class GatewayCore:
 
     @classmethod
     def _parse_minimax_response(cls, response_data: Dict) -> Dict:
-        """解析 MiniMax 响应为 OpenAI 格式，并转换 tool_call 为标准格式"""
+        """解析 MiniMax 响应为 OpenAI 格式，并转换 tool_call 为标准格式
+
+        支持三种格式：
+        1. 标准 OpenAI tool_calls 数组格式（优先检查）
+        2. MiniMax XML 格式 <minimax:tool_call>
+        3. Claude 风格 struct Tool 格式
+        """
         import re
         import json
+
         result = dict(response_data)
         choices = result.get("choices", [])
         if choices:
             for choice in choices:
                 message = choice.get("message", {})
                 content_text = message.get("content", "")
+
                 existing_tool_calls = message.get("tool_calls")
+
                 if existing_tool_calls and isinstance(existing_tool_calls, list):
                     choice["finish_reason"] = "tool_calls"
                     continue
+
+                # 2. 尝试解析 struct Tool 格式（Claude 风格）
+                # 匹配：<param name="tool_name">xxx</param>
+                tool_name_pattern = r'<param name="tool_name">([^<]+)</param>'
+                tool_name_matches = re.findall(tool_name_pattern, content_text)
+
+                if tool_name_matches:
+                    # 找到了工具调用，构建标准 tool_calls 格式
+                    tool_calls = []
+                    for idx, tool_name in enumerate(tool_name_matches):
+                        tool_call_id = f"call_{idx}"
+                        tool_calls.append({
+                            "id": tool_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name.strip(),
+                                "arguments": "{}"
+                            }
+                        })
+                    choice["message"]["tool_calls"] = tool_calls
+                    choice["finish_reason"] = "tool_calls"
+                    continue
+
+                # 3. 尝试解析 MiniMax XML 格式
                 tool_call_pattern = r'<minimax:tool_call>\s*<invoke name="([^"]+)">(.*?)</invoke>\s*</minimax:tool_call>'
                 matches = re.findall(tool_call_pattern, content_text, re.DOTALL)
+
                 if matches:
                     tool_calls = []
                     clean_content = content_text
