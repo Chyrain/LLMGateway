@@ -105,6 +105,10 @@ class GatewayCore:
         config = VENDOR_CONFIGS.get(vendor, {})
 
         # 如果是 OpenAI 兼容模式，直接使用标准格式（但仍然需要透传所有字段）
+        # MiniMax 需要特殊处理 tool_call 格式转换
+        if vendor == "minimax":
+            return cls._parse_minimax_response(response_data)
+
         if config.get("openai_compatible") or config.get("api_spec") == "openai":
             # 对于 OpenAI 兼容模式，直接透传所有字段
             return request_data
@@ -970,6 +974,50 @@ class GatewayCore:
                 )
 
         return standardized
+
+
+    @classmethod
+    def _parse_minimax_response(cls, response_data: Dict) -> Dict:
+        """解析 MiniMax 响应为 OpenAI 格式，并转换 tool_call 为标准格式"""
+        import re
+        import json
+        result = dict(response_data)
+        choices = result.get("choices", [])
+        if choices:
+            for choice in choices:
+                message = choice.get("message", {})
+                content_text = message.get("content", "")
+                existing_tool_calls = message.get("tool_calls")
+                if existing_tool_calls and isinstance(existing_tool_calls, list):
+                    choice["finish_reason"] = "tool_calls"
+                    continue
+                tool_call_pattern = r'<minimax:tool_call>\s*<invoke name="([^"]+)">(.*?)</invoke>\s*</minimax:tool_call>'
+                matches = re.findall(tool_call_pattern, content_text, re.DOTALL)
+                if matches:
+                    tool_calls = []
+                    clean_content = content_text
+                    for idx, (func_name, params_xml) in enumerate(matches):
+                        param_dict = {}
+                        param_pattern = r'<parameter\s+name="([^"]+)">(.*?)'
+                        param_matches = re.findall(param_pattern, params_xml, re.DOTALL)
+                        for param_name, param_value in param_matches:
+                            param_dict[param_name] = param_value.strip()
+                        tool_call_id = f"call_{idx}"
+                        tool_calls.append({
+                            "id": tool_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": func_name,
+                                "arguments": json.dumps(param_dict)
+                            }
+                        })
+                        pattern = r'<minimax:tool_call>\s*<invoke name="' + re.escape(func_name) + '">.*?</invoke>\s*</minimax:tool_call>'
+                        clean_content = re.sub(pattern, '', clean_content, flags=re.DOTALL)
+                    choice['message']['tool_calls'] = tool_calls
+                    choice['message']['content'] = clean_content.strip()
+                    if not choice['message']['content']:
+                        choice['finish_reason'] = 'tool_calls'
+        return result
 
     @classmethod
     def _parse_gemini_response(cls, response_data: Dict) -> Dict:
