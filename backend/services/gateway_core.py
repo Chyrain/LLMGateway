@@ -983,7 +983,7 @@ class GatewayCore:
         支持三种格式：
         1. 标准 OpenAI tool_calls 数组格式（优先检查）
         2. MiniMax XML 格式 <minimax:tool_call>
-        3. Claude 风格 struct Tool 格式
+        3. Claude 风格 struct Tool 格式 <param name="skill_name"> 和 <param name="skill_input">
         """
         import re
         import json
@@ -1002,21 +1002,37 @@ class GatewayCore:
                     continue
 
                 # 2. 尝试解析 struct Tool 格式（Claude 风格）
-                # 匹配：<param name="tool_name">xxx</param>
-                tool_name_pattern = r'<param name="tool_name">([^<]+)</param>'
+                # 格式示例：
+                # <param name="skill_name">Skill</param>
+                # <param name="skill_input">{"command": "list_files"}</param>
+                tool_name_pattern = r'<param name="skill_name">([^<]+)</param>'
                 tool_name_matches = re.findall(tool_name_pattern, content_text)
 
                 if tool_name_matches:
-                    # 找到了工具调用，构建标准 tool_calls 格式
+                    # 找到了工具调用，尝试解析对应的 skill_input
                     tool_calls = []
                     for idx, tool_name in enumerate(tool_name_matches):
                         tool_call_id = f"call_{idx}"
+                        # 尝试解析 skill_input 参数
+                        arguments = "{}"
+                        # 查找紧跟在 skill_name 后面的 skill_input
+                        skill_input_pattern = r'<param name="skill_input">([^<]+)</param>'
+                        skill_input_matches = re.findall(skill_input_pattern, content_text)
+                        if skill_input_matches and idx < len(skill_input_matches):
+                            try:
+                                # 尝试解析 JSON
+                                input_str = skill_input_matches[idx].strip()
+                                json.loads(input_str)  # 验证是否为有效 JSON
+                                arguments = input_str
+                            except json.JSONDecodeError:
+                                arguments = "{}"
+
                         tool_calls.append({
                             "id": tool_call_id,
                             "type": "function",
                             "function": {
                                 "name": tool_name.strip(),
-                                "arguments": "{}"
+                                "arguments": arguments
                             }
                         })
                     choice["message"]["tool_calls"] = tool_calls
@@ -1032,7 +1048,7 @@ class GatewayCore:
                     clean_content = content_text
                     for idx, (func_name, params_xml) in enumerate(matches):
                         param_dict = {}
-                        param_pattern = r'<parameter\s+name="([^"]+)">(.*?)'
+                        param_pattern = r'<parameter\s+name="([^"]+)">(.*?)</parameter>'
                         param_matches = re.findall(param_pattern, params_xml, re.DOTALL)
                         for param_name, param_value in param_matches:
                             param_dict[param_name] = param_value.strip()

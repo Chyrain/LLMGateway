@@ -5,6 +5,52 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.1] - 2026-03-23
+
+### 修复
+- 🐛 **MiniMax tool_call 解析增强** - 完善 struct Tool 和 XML 格式解析
+  - 修复 struct Tool 格式的 skill_input 参数解析，支持 JSON 参数透传
+  - 修复 XML 格式的 parameter 标签正则匹配，添加结束标签
+  - 添加完整的测试用例覆盖 (test_all_minimax.py)
+
+## [1.4.0] - 2026-03-15
+
+### 新增
+- 📊 **四层日志追踪系统** - 完整的请求/响应数据流转追踪
+  - L1 原始输入：客户端发出的原始 HTTP 请求
+  - L2 网关输出：网关转发给厂商 API 的请求
+  - L3 厂商响应：厂商 API 返回的原始响应
+  - L4 最终输出：网关返回给客户端的响应
+- 🔍 **字段透传验证** - 自动检测关键字段是否正确透传
+  - `thinking` 字段 L1→L2 透传检测
+  - `reasoning_content` 字段 L3→L4 保留检测
+  - `tool_calls` 字段 L3→L4 保留检测
+- 📝 **调试日志模块** - `backend/services/debug_logger.py`
+  - 支持 JSON 格式化输出带缩进
+  - 支持长度限制避免日志过大
+  - 支持文件输出和控制台输出
+- 📋 **测试脚本** - `test_four_layer_log.py` 验证日志功能
+- 🔧 **MiniMax tool_call 格式转换** - 将 MiniMax 的 XML 格式 tool_call 转换为标准 OpenAI 格式
+  - 支持解析 `<minimax:tool_call>` XML 格式
+  - 自动转换为标准 `tool_calls` 数组
+  - Claude Code 可正常识别并执行命令
+
+### 修改
+- 🔧 `backend/routers/gateway.py` - 添加 L1/L4 日志记录
+- 🔧 `backend/services/gateway_core.py` - 添加 L2/L3/L4 日志记录和 MiniMax tool_call 解析
+- 🔧 `backend/services/sdk_gateway.py` - 添加 L2/L3 日志记录 (OpenAI/Anthropic SDK)
+- 📝 `.env.example` - 添加调试日志配置项
+
+### 配置
+- `DEBUG_LOG_ENABLED` - 是否启用调试日志
+- `DEBUG_LOG_LAYERS` - 日志层级过滤 (all/input/output/none)
+- `DEBUG_LOG_MAX_LENGTH` - 单个字段最大日志长度
+- `DEBUG_LOG_OUTPUT` - 日志输出方式 (console/file/both)
+- `DEBUG_LOG_FILE` - 日志文件路径
+
+### 文档
+- 📄 `FOUR_LAYER_LOG.md` - 四层日志使用说明文档
+
 ## [1.3.0] - 2026-03-03
 
 ### 新增

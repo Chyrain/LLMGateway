@@ -107,6 +107,7 @@ logs/
 # ---------------- Docker ----------------
 .docker/
 docker-compose.override.yml
+docker-compose.*.yml
 
 # ---------------- 环境配置 ----------------
 .env

@@ -5,6 +5,7 @@
 """
 import json
 import time
+import uuid
 from typing import AsyncGenerator, Dict, Any, Optional
 from datetime import datetime
 
@@ -16,6 +17,9 @@ try:
 except ImportError:
     SDK_AVAILABLE = False
     print("[WARN] OpenAI 或 Anthropic SDK 未安装，请运行：pip install openai anthropic")
+
+# 导入调试日志
+from services.debug_logger import log_layer, is_enabled
 
 
 class SDKGateway:
@@ -94,6 +98,9 @@ class SDKGateway:
         api_path: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """OpenAI 兼容格式流式请求"""
+        # 使用传入的 request_id 或生成新的（优先使用传入的以保持追踪一致性）
+        request_id = request_data.get("_request_id", str(uuid.uuid4())[:8])
+
         try:
             # 构建 base_url
             base_url = api_base.rstrip("/")
@@ -114,9 +121,29 @@ class SDKGateway:
             # 移除不支持的字段
             clean_request = cls._clean_openai_request(request_data)
 
+            # L2 日志：记录网关输出（转发给厂商的请求）
+            if is_enabled():
+                log_layer("L2", {
+                    "api_spec": "openai",
+                    "url": base_url,
+                    "request": clean_request,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
             stream = await client.chat.completions.create(**clean_request)
+
+            # 收集响应用于 L3 日志
+            chunks = []
             async for chunk in stream:
+                chunks.append(chunk)
                 yield f"data: {chunk.model_dump_json()}\n\n"
+
+            # L3 日志：记录厂商响应（最后一个 chunk 包含完整信息）
+            if is_enabled() and chunks:
+                last_chunk = chunks[-1]
+                log_layer("L3", {
+                    "api_spec": "openai",
+                    "response": last_chunk.model_dump(),
+                }, context={"request_id": request_id, "model": request_data.get("model")})
 
             yield "data: [DONE]\n\n"
 
@@ -137,6 +164,9 @@ class SDKGateway:
         api_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """OpenAI 兼容格式同步请求"""
+        # 使用传入的 request_id 或生成新的（优先使用传入的以保持追踪一致性）
+        request_id = request_data.get("_request_id", str(uuid.uuid4())[:8])
+
         try:
             base_url = api_base.rstrip("/")
             if api_path and api_path != "/chat/completions":
@@ -153,8 +183,25 @@ class SDKGateway:
             request_data["stream"] = False
             clean_request = cls._clean_openai_request(request_data)
 
+            # L2 日志：记录网关输出（转发给厂商的请求）
+            if is_enabled():
+                log_layer("L2", {
+                    "api_spec": "openai",
+                    "url": base_url,
+                    "request": clean_request,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
             response = await client.chat.completions.create(**clean_request)
-            return response.model_dump()
+            response_dict = response.model_dump()
+
+            # L3 日志：记录厂商原始响应
+            if is_enabled():
+                log_layer("L3", {
+                    "api_spec": "openai",
+                    "response": response_dict,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
+            return response_dict
 
         except Exception as e:
             error_type = cls._classify_error(e)
@@ -180,6 +227,9 @@ class SDKGateway:
         - message_delta: 消息增量（包含 stop_reason 和 usage）
         - message_stop: 消息结束
         """
+        # 使用传入的 request_id 或生成新的（优先使用传入的以保持追踪一致性）
+        request_id = request_data.get("_request_id", str(uuid.uuid4())[:8])
+
         try:
             client = AsyncAnthropic(
                 api_key=api_key,
@@ -214,9 +264,21 @@ class SDKGateway:
             if "metadata" in request_data:
                 create_kwargs["metadata"] = request_data["metadata"]
 
+            # L2 日志：记录网关输出（转发给厂商的请求）
+            if is_enabled():
+                log_layer("L2", {
+                    "api_spec": "anthropic",
+                    "url": api_base.rstrip("/"),
+                    "request": create_kwargs,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
             # 创建流式请求 - 使用 stream=True
             stream = await client.messages.create(**create_kwargs, stream=True)
+
+            # 收集响应用于 L3 日志
+            chunks = []
             async for chunk in stream:
+                chunks.append(chunk)
                 # 根据事件类型构建响应
                 event_type = getattr(chunk, 'type', 'unknown')
 
@@ -256,6 +318,14 @@ class SDKGateway:
 
                 yield f"event: {event_type}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
+            # L3 日志：记录厂商响应（最后一个 chunk 包含完整信息）
+            if is_enabled() and chunks:
+                last_chunk = chunks[-1]
+                log_layer("L3", {
+                    "api_spec": "anthropic",
+                    "response": last_chunk.model_dump() if hasattr(last_chunk, 'model_dump') else str(last_chunk),
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
         except Exception as e:
             # 区分错误类型
             error_type = cls._classify_error(e)
@@ -273,6 +343,9 @@ class SDKGateway:
         request_data: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Anthropic 格式同步请求"""
+        # 使用传入的 request_id 或生成新的（优先使用传入的以保持追踪一致性）
+        request_id = request_data.get("_request_id", str(uuid.uuid4())[:8])
+
         try:
             client = AsyncAnthropic(
                 api_key=api_key,
@@ -307,8 +380,25 @@ class SDKGateway:
             if "metadata" in request_data:
                 create_kwargs["metadata"] = request_data["metadata"]
 
+            # L2 日志：记录网关输出（转发给厂商的请求）
+            if is_enabled():
+                log_layer("L2", {
+                    "api_spec": "anthropic",
+                    "url": api_base.rstrip("/"),
+                    "request": create_kwargs,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
             response = await client.messages.create(**create_kwargs)
-            return response.model_dump()
+            response_dict = response.model_dump()
+
+            # L3 日志：记录厂商原始响应
+            if is_enabled():
+                log_layer("L3", {
+                    "api_spec": "anthropic",
+                    "response": response_dict,
+                }, context={"request_id": request_id, "model": request_data.get("model")})
+
+            return response_dict
 
         except Exception as e:
             error_type = cls._classify_error(e)

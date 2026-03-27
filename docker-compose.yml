@@ -16,6 +16,12 @@ services:
       - SWITCH_THRESHOLD=99
       - SYNC_INTERVAL=10
       - API_MODE=true
+      # 调试日志配置
+      - DEBUG_LOG_ENABLED=true
+      - DEBUG_LOG_LAYERS=all
+      - DEBUG_LOG_MAX_LENGTH=200000
+      - DEBUG_LOG_OUTPUT=both
+      - DEBUG_LOG_FILE=/app/logs/debug_requests.log
     volumes:
       - ./runtime_data/backend_data:/data
       - ./backend/logs:/app/logs
@@ -37,8 +43,15 @@ services:
       - PORT=8080
       - API_PORT=8080
       - GATEWAY_MODE=true
+      # 调试日志配置
+      - DEBUG_LOG_ENABLED=true
+      - DEBUG_LOG_LAYERS=all
+      - DEBUG_LOG_MAX_LENGTH=200000
+      - DEBUG_LOG_OUTPUT=both
+      - DEBUG_LOG_FILE=/app/logs/debug_requests.log
     volumes:
       - ./runtime_data/backend_data:/data
+      - ./backend/logs:/app/logs
       - ./backend:/app
     restart: unless-stopped
     networks:

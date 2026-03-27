@@ -21,6 +21,7 @@ from models.system_config import SystemConfig
 from services.gateway_core import GatewayCore
 from services.quota_monitor import QuotaMonitor
 from services.sdk_gateway import SDKGateway
+from services.debug_logger import log_four_layers, log_layer, is_enabled
 from routers.config import config_store
 
 # 创建路由
@@ -472,9 +473,23 @@ async def chat_completions(
                 for key, value in request.model_extra.items():
                     if key not in request_data and value is not None:
                         request_data[key] = value
-                
+
                 print(f"[DEBUG] 最终请求数据：{request_data}")
-                
+
+                # 生成请求 ID 用于四层日志追踪（传递给 GatewayCore 保持一致）
+                import uuid
+                request_id = str(uuid.uuid4())[:8]
+                request_data["_request_id"] = request_id  # 透传到 GatewayCore
+
+                # L1 日志：记录原始输入请求（在调用 GatewayCore 之前）
+                if is_enabled():
+                    log_layer("L1", {
+                        "model": request.model or "auto",
+                        "messages": [m.to_dict() for m in request.messages],
+                        **{field: getattr(request, field, None) for field in optional_fields if getattr(request, field, None) is not None},
+                        **{key: value for key, value in request.model_extra.items() if value is not None and key != "_request_id"},
+                    }, context={"request_id": request_id, "model": request.model or "auto"})
+
                 response = await GatewayCore.sync_request(
                     model.vendor,
                     model.api_base,
