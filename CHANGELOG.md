@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.7] - 2026-03-28
+
+### 修复
+- 🐛 **转换模式 tool_calls None 错误** - 修复 OpenAI 响应中 tool_calls 为 None 时的转换错误
+  - 使用 `message.get("tool_calls") or []` 确保始终为可迭代对象
+
+### 修改
+- 🔧 **百炼 API Base 地址** - 更新为 `https://coding.dashscope.aliyuncs.com/v1`
+  - 支持 `sk-sp-` 前缀的通义灵码 Coding Plan API Key
+  - 同时支持 OpenAI 和 Anthropic 两种格式请求
+
+### 验证
+- ✅ **基础对话测试** - 单轮和多轮对话正常
+- ✅ **流式输出测试** - SSE 格式事件完整 (message_start/content_block_delta/message_delta/message_stop)
+- ✅ **API Key 自动匹配** - `sk-sp-` 前缀自动使用 Coding Plan API
+
 ## [1.4.6] - 2026-03-28
 
 ### 修复
