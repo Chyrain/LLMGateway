@@ -5,6 +5,19 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.3] - 2026-03-28
+
+### 修复
+- 🐛 **Anthropic 接口 tool_use 转换** - 修复 OpenAI 响应转换为 Anthropic 格式时 tool_calls 丢失
+  - 添加 OpenAI tool_calls 到 Anthropic tool_use 的完整转换逻辑
+  - 支持 tool_use 字段正确透传给 Claude Code 等客户端
+- 🐛 **qwen thinking 模式 tool_choice 兼容** - 修复 qwen thinking 模式不支持 tool_choice 的问题
+  - 自动检测并移除 thinking 模式下的 tool_choice 参数
+  - 添加 tools、tool_choice、enable_thinking 参数透传
+- 🐛 **MiniMax tool_call 解析增强** - 完善 struct Tool 和 XML 格式解析
+  - 修复 struct Tool 格式的 skill_input 参数解析，支持 JSON 参数透传
+  - 修复 XML 格式的 parameter 标签正则匹配，添加结束标签
+
 ## [1.4.2] - 2026-03-28
 
 ### 新增

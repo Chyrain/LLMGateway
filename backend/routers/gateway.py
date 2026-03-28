@@ -468,6 +468,13 @@ async def chat_completions(
                     value = getattr(request, field, None)
                     if value is not None:
                         request_data[field] = value
+
+                # 特殊处理：qwen thinking 模式不支持 tool_choice
+                # 如果模型是 qwen 且开启了 thinking 模式，移除 tool_choice 参数
+                if model.vendor == "qwen" and request_data.get("thinking"):
+                    if "tool_choice" in request_data:
+                        print(f"[WARN] qwen thinking 模式不支持 tool_choice，已移除")
+                        del request_data["tool_choice"]
                 
                 # 透传任何其他额外字段
                 for key, value in request.model_extra.items():
@@ -970,7 +977,9 @@ async def anthropic_messages(
                 else:
                     # OpenAI 格式响应，需要转换为 Anthropic 格式
                     choices = response.get("choices", [])
-                    response_content = choices[0].get("message", {}).get("content", "")
+                    message = choices[0].get("message", {}) if choices else {}
+                    response_content = message.get("content", "")
+                    tool_calls = message.get("tool_calls", None)
                     usage = response.get("usage", {})
                     response_json_str = json.dumps(response, ensure_ascii=False)
 
@@ -1007,6 +1016,32 @@ async def anthropic_messages(
                     except:
                         pass
 
+                    # 构建 content 数组（支持 text 和 tool_use）
+                    content_blocks = []
+                    if response_content:
+                        content_blocks.append({"type": "text", "text": response_content})
+
+                    # 转换 tool_calls 为 Anthropic tool_use 格式
+                    if tool_calls and isinstance(tool_calls, list):
+                        for tc in tool_calls:
+                            tc_id = tc.get("id", f"tooluse_{len(content_blocks)}")
+                            tc_function = tc.get("function", {})
+                            tc_name = tc_function.get("name", "")
+                            tc_arguments = tc_function.get("arguments", "{}")
+
+                            # 解析 arguments 为 JSON 对象
+                            try:
+                                input_data = json.loads(tc_arguments)
+                            except (json.JSONDecodeError, TypeError):
+                                input_data = tc_arguments if isinstance(tc_arguments, dict) else {}
+
+                            content_blocks.append({
+                                "type": "tool_use",
+                                "id": tc_id,
+                                "name": tc_name,
+                                "input": input_data,
+                            })
+
                     stop_reason = "end_turn"
                     if choices and len(choices) > 0:
                         finish_reason = choices[0].get("finish_reason")
@@ -1027,7 +1062,7 @@ async def anthropic_messages(
                         "id": f"msg_{int(time.time() * 1000)}",
                         "type": "message",
                         "role": "assistant",
-                        "content": [{"type": "text", "text": response_content}],
+                        "content": content_blocks,  # 返回包含 text 和 tool_use 的数组
                         "model": model.model_name,
                         "stop_reason": stop_reason,
                         "stop_sequence": stop_sequence,

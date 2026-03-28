@@ -204,16 +204,31 @@ class GatewayCore:
         """构建 Qwen OpenAI 兼容格式请求体"""
         messages = request_data.get("messages", [])
 
-        # Qwen 使用 input 字段
+        # 构建 parameters 对象
+        parameters = {
+            "result_format": "message",
+            "max_tokens": request_data.get("max_tokens", 1500),
+            "temperature": request_data.get("temperature", 0.7),
+            "top_p": request_data.get("top_p", 0.8),
+        }
+
+        # 透传 tools 参数（如果存在）
+        if "tools" in request_data:
+            parameters["tools"] = request_data["tools"]
+
+        # 透传 tool_choice 参数（如果存在）
+        # 注意：qwen thinking 模式不支持 tool_choice，需要在 router 层处理
+        if "tool_choice" in request_data:
+            parameters["tool_choice"] = request_data["tool_choice"]
+
+        # 透传 enable_thinking 参数（如果存在）
+        if "enable_thinking" in request_data:
+            parameters["enable_thinking"] = request_data["enable_thinking"]
+
         return {
             "model": request_data.get("model"),
             "input": {"messages": messages},
-            "parameters": {
-                "result_format": "message",
-                "max_tokens": request_data.get("max_tokens", 1500),
-                "temperature": request_data.get("temperature", 0.7),
-                "top_p": request_data.get("top_p", 0.8),
-            },
+            "parameters": parameters,
         }
 
     @classmethod
@@ -1118,14 +1133,45 @@ class GatewayCore:
 
     @classmethod
     def _parse_claude_response(cls, response_data: Dict) -> Dict:
-        """解析 Claude 响应为 OpenAI 格式"""
+        """解析 Claude 响应为 OpenAI 格式（支持 tool_use）"""
         content_blocks = response_data.get("content", [])
         text = ""
+        tool_calls = []
+
         for block in content_blocks:
-            if block.get("type") == "text":
+            block_type = block.get("type")
+            if block_type == "text":
                 text += block.get("text", "")
+            elif block_type == "tool_use":
+                # Anthropic tool_use 格式转换为 OpenAI tool_calls 格式
+                tool_call = {
+                    "id": block.get("id", f"tooluse_{len(tool_calls)}"),
+                    "type": "function",
+                    "function": {
+                        "name": block.get("name", ""),
+                        "arguments": json.dumps(block.get("input", {}))
+                    }
+                }
+                tool_calls.append(tool_call)
 
         usage = response_data.get("usage", {})
+
+        # 确定 finish_reason
+        stop_reason = response_data.get("stop_reason", "stop")
+        if stop_reason == "tool_use":
+            finish_reason = "tool_calls"
+        elif stop_reason == "end_turn":
+            finish_reason = "stop"
+        else:
+            finish_reason = stop_reason
+
+        # 构建响应消息
+        message = {
+            "role": "assistant",
+            "content": text,
+        }
+        if tool_calls:
+            message["tool_calls"] = tool_calls
 
         return {
             "id": response_data.get("id", f"chatcmpl-{id(response_data)}"),
@@ -1135,11 +1181,8 @@ class GatewayCore:
             "choices": [
                 {
                     "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": text,
-                    },
-                    "finish_reason": response_data.get("stop_reason", "stop"),
+                    "message": message,
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": {
