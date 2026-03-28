@@ -4,7 +4,7 @@
 
   "vendors_api_base_rules": {
     "qwen": {
-      "_comment": "阿里通义千问 - 支持标准 API 和 Coding Plan",
+      "_comment": "阿里通义千问 - 仅支持 OpenAI 兼容接口，Anthropic 格式需转换",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
@@ -16,11 +16,13 @@
           "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
           "description": "标准 API (按 Token 计费)"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "bailian": {
-      "_comment": "阿里百炼 - 与通义千问共享 API 地址",
+      "_comment": "阿里百炼 - 仅支持 OpenAI 兼容接口，Anthropic 格式需转换",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
@@ -32,27 +34,31 @@
           "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
           "description": "百炼标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "zhipu": {
-      "_comment": "智谱 AI - 支持标准 API 和 Coding Plan",
+      "_comment": "智谱 AI - 仅支持 OpenAI 兼容接口，Anthropic 格式需转换",
       "api_base_rules": [
         {
           "match_pattern": "coding",
           "plan_type": "coding",
-          "api_base": "https://open.bigmodel.cn/api/coding/paas/v4",
+          "api_base": "https://open.bigmodel.cn/api/paas/v4",
           "description": "GLM Coding Plan API (Lite/Pro 套餐)"
         },
         {
           "api_base": "https://open.bigmodel.cn/api/paas/v4",
           "description": "智谱标准 API (按 Token 计费)"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "deepseek": {
-      "_comment": "深度求索 - 仅标准 API",
+      "_comment": "深度求索 - 仅标准 API，原生支持 OpenAI 格式",
       "api_base": "https://api.deepseek.com",
       "api_base_rules": [
         {
@@ -60,7 +66,9 @@
           "api_base": "https://api.deepseek.com",
           "description": "DeepSeek 标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "moonshot": {
@@ -72,7 +80,9 @@
           "api_base": "https://api.moonshot.cn/v1",
           "description": "Kimi 标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "doubao": {
@@ -83,11 +93,13 @@
           "api_base": "https://ark.cn-beijing.volces.com/api/v3",
           "description": "火山方舟标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "minimax": {
-      "_comment": "MiniMax - 支持标准 API 和套餐",
+      "_comment": "MiniMax - 仅支持 OpenAI 兼容接口，Anthropic 格式需转换",
       "api_base": "https://api.minimaxi.com/v1",
       "api_base_rules": [
         {
@@ -99,7 +111,9 @@
           "api_base": "https://api.minimaxi.com/v1",
           "description": "MiniMax 标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "spark": {
@@ -111,7 +125,9 @@
           "api_base": "https://spark-api-open.xf-yun.com/v1",
           "description": "讯飞星火标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "hunyuan": {
@@ -123,7 +139,9 @@
           "api_base": "https://api.hunyuan.cloud.tencent.com/v1",
           "description": "腾讯混元标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "baidu_qianfan": {
@@ -135,7 +153,9 @@
           "api_base": "https://qianfan.baidubce.com/v2",
           "description": "百度千帆标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "stepfun": {
@@ -146,7 +166,9 @@
           "api_base": "https://api.stepfun.com/v1",
           "description": "阶跃星辰标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     },
 
     "yi": {
@@ -157,26 +179,41 @@
           "api_base": "https://api.lingyiwanwu.com/v1",
           "description": "零一万物标准 API"
         }
-      ]
+      ],
+      "api_spec_support": ["openai"],
+      "native_anthropic": false
     }
+  },
+
+  "api_interface_support": {
+    "_comment": "各厂商对 OpenAI/Anthropic 接口的支持情况",
+    "openai_compatible": [
+      "qwen", "bailian", "zhipu", "deepseek", "moonshot",
+      "doubao", "minimax", "spark", "hunyuan", "baidu_qianfan",
+      "stepfun", "yi"
+    ],
+    "anthropic_compatible": [
+      "qwen", "bailian", "zhipu", "minimax"
+    ]
   },
 
   "summary": {
     "total_vendors": 12,
     "multi_api_base_vendors": 3,
+    "anthropic_support_vendors": 4,
     "vendors_list": [
-      {"id": "qwen", "name": "阿里通义千问", "api_bases": 2, "auto_match": true},
-      {"id": "bailian", "name": "阿里百炼", "api_bases": 2, "auto_match": true},
-      {"id": "zhipu", "name": "智谱 AI", "api_bases": 2, "auto_match": true},
-      {"id": "deepseek", "name": "深度求索", "api_bases": 1, "auto_match": true},
-      {"id": "moonshot", "name": "月之暗面", "api_bases": 1, "auto_match": true},
-      {"id": "doubao", "name": "字节豆包", "api_bases": 1, "auto_match": true},
-      {"id": "minimax", "name": "MiniMax", "api_bases": 1, "auto_match": true},
-      {"id": "spark", "name": "讯飞星火", "api_bases": 1, "auto_match": true},
-      {"id": "hunyuan", "name": "腾讯混元", "api_bases": 1, "auto_match": true},
-      {"id": "baidu_qianfan", "name": "百度千帆", "api_bases": 1, "auto_match": true},
-      {"id": "stepfun", "name": "阶跃星辰", "api_bases": 1, "auto_match": true},
-      {"id": "yi", "name": "零一万物", "api_bases": 1, "auto_match": true}
+      {"id": "qwen", "name": "阿里通义千问", "api_bases": 2, "openai": true, "anthropic": true},
+      {"id": "bailian", "name": "阿里百炼", "api_bases": 2, "openai": true, "anthropic": true},
+      {"id": "zhipu", "name": "智谱 AI", "api_bases": 1, "openai": true, "anthropic": true},
+      {"id": "deepseek", "name": "深度求索", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "moonshot", "name": "月之暗面", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "doubao", "name": "字节豆包", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "minimax", "name": "MiniMax", "api_bases": 1, "openai": true, "anthropic": true},
+      {"id": "spark", "name": "讯飞星火", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "hunyuan", "name": "腾讯混元", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "baidu_qianfan", "name": "百度千帆", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "stepfun", "name": "阶跃星辰", "api_bases": 1, "openai": true, "anthropic": false},
+      {"id": "yi", "name": "零一万物", "api_bases": 1, "openai": true, "anthropic": false}
     ]
   }
 }

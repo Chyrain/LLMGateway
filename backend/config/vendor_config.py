@@ -29,6 +29,32 @@ def _load_api_base_rules():
     return {}
 
 
+def get_api_spec_support(vendor_id: str) -> list:
+    """获取厂商支持的 API 规范列表 (openai/anthropic)
+
+    Args:
+        vendor_id: 厂商 ID
+
+    Returns:
+        list: 支持的 API 规范列表，如 ["openai", "anthropic"]
+    """
+    api_base_rules_data = _API_BASE_RULES.get(vendor_id, {})
+    return api_base_rules_data.get("api_spec_support", ["openai"])
+
+
+def get_anthropic_compat_base(vendor_id: str) -> str:
+    """获取厂商的 Anthropic 兼容 API Base 地址
+
+    Args:
+        vendor_id: 厂商 ID
+
+    Returns:
+        str: Anthropic 兼容的 API Base 地址，如果没有则返回空字符串
+    """
+    api_base_rules_data = _API_BASE_RULES.get(vendor_id, {})
+    return api_base_rules_data.get("anthropic_compat_base", "")
+
+
 _VENDOR_DATA = _load_vendor_config()
 _API_BASE_RULES = _load_api_base_rules()
 

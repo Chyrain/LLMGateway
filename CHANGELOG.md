@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.5] - 2026-03-28
+
+### 修复
+- 🐛 **Anthropic 格式兼容模式** - 修正国内厂商 Anthropic 兼容配置，改为使用转换模式而非原生透传
+  - 国内厂商（阿里通义千问、阿里百炼、智谱 AI、MiniMax）实际仅支持 OpenAI 兼容接口
+  - `/v1/messages` 端点接收 Anthropic 格式请求后，自动转换为 OpenAI 格式转发
+  - 响应时将 OpenAI 格式的 `tool_calls` 转换为 Anthropic 格式的 `tool_use`
+  - 支持完整的 Anthropic Messages API 兼容体验
+
+### 技术实现
+- 更新 `vendors_api_base_rules.json` 配置：
+  - 所有国内厂商 `api_spec_support` 改为 `["openai"]`
+  - 移除无效的 `anthropic_compat_base` 配置
+- `/v1/messages` 端点逻辑：
+  - 检查厂商 `api_spec_support` 配置
+  - 不支持 `anthropic` 时自动使用 OpenAI 格式转换兼容
+  - 保持完整的 tool_use 转换和响应构建
+
 ## [1.4.4] - 2026-03-28
 
 ### 新增

@@ -23,6 +23,7 @@ from services.quota_monitor import QuotaMonitor
 from services.sdk_gateway import SDKGateway
 from services.debug_logger import log_four_layers, log_layer, is_enabled
 from routers.config import config_store
+from config.vendor_config import get_api_spec_support, get_anthropic_compat_base
 
 # 创建路由
 gateway_router = APIRouter(prefix="", tags=["网关接口"])
@@ -745,12 +746,18 @@ async def anthropic_messages(
             start_time = time.time()
 
             try:
-                # 根据 api_spec 决定请求构建方式
-                api_spec = model.api_spec or "openai"
-                use_anthropic_format = api_spec == "anthropic"
+                # 检查厂商是否原生支持 Anthropic 格式
+                # 如果厂商支持 anthropic 格式（如 qwen, bailian, zhipu, minimax），使用原生透传
+                # 否则使用 OpenAI 格式转换兼容
+                api_spec_support = get_api_spec_support(model.vendor)
+                use_native_anthropic = "anthropic" in api_spec_support
 
-                if use_anthropic_format:
-                    # 直接使用 Anthropic 格式，完整透传
+                if use_native_anthropic:
+                    # 原生 Anthropic 格式透传 - 使用 SDK 转发
+                    # 使用 anthropic_compat_base 作为 API Base 地址
+                    anthropic_compat_base = get_anthropic_compat_base(model.vendor)
+                    target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
+
                     request_data = {
                         "model": model.model_name,
                         "messages": [msg.model_dump() for msg in request.messages],
@@ -779,6 +786,8 @@ async def anthropic_messages(
                         if key not in request_data and value is not None:
                             request_data[key] = value
                 else:
+                    # 转换为 OpenAI 格式（向后兼容）
+                    target_api_base = model.api_base  # 非原生模式使用原 api_base
                     # 转换为 OpenAI 格式（向后兼容）
                     def extract_text_content(content: Union[str, List[dict]]) -> str:
                         """从 content 中提取文本内容"""
@@ -818,10 +827,10 @@ async def anthropic_messages(
                             request_data[key] = value
 
 
-                # 流式响应 - 根据 api_spec 选择 SDK
+                # 流式响应 - 根据是否原生支持 Anthropic 格式选择 SDK
                 if request.stream:
-                    if use_anthropic_format:
-                        # 使用 Anthropic SDK 流式转发
+                    if use_native_anthropic:
+                        # 使用 Anthropic SDK 流式转发（原生格式透传）
                         return StreamingResponse(
                             _sdk_anthropic_stream_with_logging(
                                 model,
@@ -830,6 +839,7 @@ async def anthropic_messages(
                                 client_ip,
                                 user_agent,
                                 request.max_tokens or 1024,
+                                target_api_base,  # 传递 API Base 地址
                             ),
                             media_type="text/event-stream",
                             headers={
@@ -839,7 +849,7 @@ async def anthropic_messages(
                             },
                         )
                     else:
-                        # 使用 OpenAI 兼容格式流式转发
+                        # 使用 OpenAI 兼容格式流式转发（需要转换）
                         return StreamingResponse(
                             _anthropic_stream_with_logging(
                                 model,
@@ -857,17 +867,17 @@ async def anthropic_messages(
                             },
                         )
                 else:
-                    # 非流式响应 - 根据 api_spec 选择 SDK
-                    if use_anthropic_format:
-                        # 使用 Anthropic SDK 转发
+                    # 非流式响应 - 根据是否原生支持 Anthropic 格式选择 SDK
+                    if use_native_anthropic:
+                        # 使用 Anthropic SDK 转发（原生格式透传）
                         response = await SDKGateway.sync_request(
                             api_spec="anthropic",
-                            api_base=model.api_base,
+                            api_base=target_api_base,
                             api_key=model.api_key,
                             request_data=request_data,
                         )
                     else:
-                        # 使用 OpenAI 兼容格式转发
+                        # 使用 OpenAI 兼容格式转发（需要转换）
                         response = await GatewayCore.sync_request(
                             model.vendor,
                             model.api_base,
@@ -883,7 +893,7 @@ async def anthropic_messages(
                     raise ValueError(f"API 错误 ({error_type}): {error_detail}")
 
                 # 验证响应（支持 text 和 tool_use 内容块）
-                if use_anthropic_format:
+                if use_native_anthropic:
                     # Anthropic 格式响应验证
                     content_blocks = response.get("content", [])
                     has_content = False
@@ -908,9 +918,9 @@ async def anthropic_messages(
                 # 成功：记录日志并返回响应
                 response_time = datetime.now()
                 duration_ms = (time.time() - start_time) * 1000
-                
-                # 根据 api_spec 处理响应
-                if use_anthropic_format:
+
+                # 根据是否原生支持 Anthropic 格式处理响应
+                if use_native_anthropic:
                     # Anthropic SDK 返回的已经是 Anthropic 格式，直接透传
                     response_content = ""
                     content_blocks = response.get("content", [])
@@ -1229,8 +1239,18 @@ async def _sdk_anthropic_stream_with_logging(
     client_ip: Optional[str],
     user_agent: Optional[str],
     max_tokens: int,
+    api_base_override: Optional[str] = None,
 ):
     """Anthropic SDK 流式请求包装器，用于记录日志
+
+    Args:
+        model: 模型配置对象
+        request_data: 请求数据
+        requested_model: 请求的模型名称
+        client_ip: 客户端 IP
+        user_agent: User-Agent
+        max_tokens: 最大 Token 数
+        api_base_override: 可选的 API Base 地址覆盖
 
     Anthropic SDK 流式事件格式：
     - event: message_start / data: {"type": "message_start", "message": {...}}
@@ -1253,7 +1273,7 @@ async def _sdk_anthropic_stream_with_logging(
         # 使用 SDKGateway 进行 Anthropic 格式流式转发
         async for chunk in SDKGateway.stream_request(
             api_spec="anthropic",
-            api_base=model.api_base,
+            api_base=api_base_override if api_base_override else model.api_base,
             api_key=model.api_key,
             request_data=request_data,
         ):
