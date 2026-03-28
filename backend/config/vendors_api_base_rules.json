@@ -4,7 +4,7 @@
 
   "vendors_api_base_rules": {
     "qwen": {
-      "_comment": "阿里通义千问 - 支持标准 API 和 Coding Plan，Anthropic 格式通过转换模式支持",
+      "_comment": "阿里通义千问 - Anthropic 兼容接口地址",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
@@ -19,11 +19,11 @@
       ],
       "api_spec_support": ["openai"],
       "anthropic_via_conversion": true,
-      "anthropic_compat_base": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
     },
 
     "bailian": {
-      "_comment": "阿里百炼 - 与通义千问共享 API 地址，Anthropic 格式通过转换模式支持",
+      "_comment": "阿里百炼 - Anthropic 兼容接口地址",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
@@ -38,7 +38,7 @@
       ],
       "api_spec_support": ["openai"],
       "anthropic_via_conversion": true,
-      "anthropic_compat_base": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
     },
 
     "zhipu": {
