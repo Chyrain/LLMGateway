@@ -316,12 +316,22 @@ if API_MODE:
         if exist:
             raise HTTPException(status_code=400, detail="模型配置已存在（同一厂商、模型名称和 API 格式只能配置一次）")
 
+        # 自动根据 API Key 前缀和 plan_type 选择 API Base 地址（如果未手动指定）
+        api_base = request.api_base
+        if not api_base:
+            from config.vendor_config import get_api_base_for_key
+            # 如果 plan_type 为 "coding" 或 "coding_plan"，自动使用 Coding Plan API
+            plan_type_param = request.plan_type if request.plan_type else None
+            api_base = get_api_base_for_key(request.vendor, request.api_key, plan_type_param)
+            # 如果 vendor_config 中没有配置，使用默认模板
+            if not api_base:
+                api_base = get_vendor_template(request.vendor).get("api_base")
+
         model = ModelConfig(
             vendor=request.vendor,
             model_name=request.model_name,
             api_key=request.api_key,
-            api_base=request.api_base
-            or get_vendor_template(request.vendor).get("api_base"),
+            api_base=api_base,
             api_path=request.api_path,
             api_spec=request.api_spec or "openai",
             params=request.params or {},

@@ -1,0 +1,182 @@
+{
+  "_comment": "国内厂商 API Base Rules 配置 - 用于根据 API Key 自动匹配 API 地址",
+  "_note": "将此配置添加到 vendors.json 中对应厂商的配置下",
+
+  "vendors_api_base_rules": {
+    "qwen": {
+      "_comment": "阿里通义千问 - 支持标准 API 和 Coding Plan",
+      "api_base_rules": [
+        {
+          "api_key_prefix": "sk-sp-",
+          "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+          "description": "通义灵码 Coding Plan API"
+        },
+        {
+          "api_key_prefix": "sk-",
+          "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "description": "标准 API (按 Token 计费)"
+        }
+      ]
+    },
+
+    "bailian": {
+      "_comment": "阿里百炼 - 与通义千问共享 API 地址",
+      "api_base_rules": [
+        {
+          "api_key_prefix": "sk-sp-",
+          "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+          "description": "百炼 Coding Plan API"
+        },
+        {
+          "api_key_prefix": "sk-",
+          "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "description": "百炼标准 API"
+        }
+      ]
+    },
+
+    "zhipu": {
+      "_comment": "智谱 AI - 支持标准 API 和 Coding Plan",
+      "api_base_rules": [
+        {
+          "match_pattern": "coding",
+          "plan_type": "coding",
+          "api_base": "https://open.bigmodel.cn/api/coding/paas/v4",
+          "description": "GLM Coding Plan API (Lite/Pro 套餐)"
+        },
+        {
+          "api_base": "https://open.bigmodel.cn/api/paas/v4",
+          "description": "智谱标准 API (按 Token 计费)"
+        }
+      ]
+    },
+
+    "deepseek": {
+      "_comment": "深度求索 - 仅标准 API",
+      "api_base": "https://api.deepseek.com",
+      "api_base_rules": [
+        {
+          "api_key_prefix": "sk-",
+          "api_base": "https://api.deepseek.com",
+          "description": "DeepSeek 标准 API"
+        }
+      ]
+    },
+
+    "moonshot": {
+      "_comment": "月之暗面 Kimi - 仅标准 API",
+      "api_base": "https://api.moonshot.cn/v1",
+      "api_base_rules": [
+        {
+          "api_key_prefix": "sk-",
+          "api_base": "https://api.moonshot.cn/v1",
+          "description": "Kimi 标准 API"
+        }
+      ]
+    },
+
+    "doubao": {
+      "_comment": "字节豆包 (火山方舟) - 仅标准 API",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_base_rules": [
+        {
+          "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+          "description": "火山方舟标准 API"
+        }
+      ]
+    },
+
+    "minimax": {
+      "_comment": "MiniMax - 支持标准 API 和套餐",
+      "api_base": "https://api.minimaxi.com/v1",
+      "api_base_rules": [
+        {
+          "plan_type": "coding",
+          "api_base": "https://api.minimaxi.com/v1",
+          "description": "MiniMax Coding Plan API"
+        },
+        {
+          "api_base": "https://api.minimaxi.com/v1",
+          "description": "MiniMax 标准 API"
+        }
+      ]
+    },
+
+    "spark": {
+      "_comment": "讯飞星火 - 仅标准 API (需要 JWT 签名)",
+      "api_base": "https://spark-api-open.xf-yun.com/v1",
+      "auth_method": "jwt-signature",
+      "api_base_rules": [
+        {
+          "api_base": "https://spark-api-open.xf-yun.com/v1",
+          "description": "讯飞星火标准 API"
+        }
+      ]
+    },
+
+    "hunyuan": {
+      "_comment": "腾讯混元 - 仅标准 API (需要 TC3 签名)",
+      "api_base": "https://api.hunyuan.cloud.tencent.com/v1",
+      "auth_method": "tc3-hmac-sha256",
+      "api_base_rules": [
+        {
+          "api_base": "https://api.hunyuan.cloud.tencent.com/v1",
+          "description": "腾讯混元标准 API"
+        }
+      ]
+    },
+
+    "baidu_qianfan": {
+      "_comment": "百度千帆 - 仅标准 API (需要 OAuth 2.0)",
+      "api_base": "https://qianfan.baidubce.com/v2",
+      "auth_method": "oauth2",
+      "api_base_rules": [
+        {
+          "api_base": "https://qianfan.baidubce.com/v2",
+          "description": "百度千帆标准 API"
+        }
+      ]
+    },
+
+    "stepfun": {
+      "_comment": "阶跃星辰 - 仅标准 API",
+      "api_base": "https://api.stepfun.com/v1",
+      "api_base_rules": [
+        {
+          "api_base": "https://api.stepfun.com/v1",
+          "description": "阶跃星辰标准 API"
+        }
+      ]
+    },
+
+    "yi": {
+      "_comment": "零一万物 - 仅标准 API",
+      "api_base": "https://api.lingyiwanwu.com/v1",
+      "api_base_rules": [
+        {
+          "api_base": "https://api.lingyiwanwu.com/v1",
+          "description": "零一万物标准 API"
+        }
+      ]
+    }
+  },
+
+  "summary": {
+    "total_vendors": 12,
+    "multi_api_base_vendors": 3,
+    "vendors_list": [
+      {"id": "qwen", "name": "阿里通义千问", "api_bases": 2, "auto_match": true},
+      {"id": "bailian", "name": "阿里百炼", "api_bases": 2, "auto_match": true},
+      {"id": "zhipu", "name": "智谱 AI", "api_bases": 2, "auto_match": true},
+      {"id": "deepseek", "name": "深度求索", "api_bases": 1, "auto_match": true},
+      {"id": "moonshot", "name": "月之暗面", "api_bases": 1, "auto_match": true},
+      {"id": "doubao", "name": "字节豆包", "api_bases": 1, "auto_match": true},
+      {"id": "minimax", "name": "MiniMax", "api_bases": 1, "auto_match": true},
+      {"id": "spark", "name": "讯飞星火", "api_bases": 1, "auto_match": true},
+      {"id": "hunyuan", "name": "腾讯混元", "api_bases": 1, "auto_match": true},
+      {"id": "baidu_qianfan", "name": "百度千帆", "api_bases": 1, "auto_match": true},
+      {"id": "stepfun", "name": "阶跃星辰", "api_bases": 1, "auto_match": true},
+      {"id": "yi", "name": "零一万物", "api_bases": 1, "auto_match": true}
+    ]
+  }
+}

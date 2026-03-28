@@ -62,6 +62,18 @@
         "api_key_prefix": "sk-sp-",
         "description": "通义灵码 Coding Plan"
       },
+      "api_base_rules": [
+        {
+          "api_key_prefix": "sk-sp-",
+          "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+          "description": "Coding Plan API"
+        },
+        {
+          "api_key_prefix": "sk-",
+          "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "description": "标准 API"
+        }
+      ],
       "models": {
         "qwen3.5-max": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},
         "qwen3.5-plus": {"context_length": 256000, "capabilities": ["text", "vision", "function_calling"], "vision": true, "function_calling": true},

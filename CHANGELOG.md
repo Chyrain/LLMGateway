@@ -5,6 +5,31 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.4] - 2026-03-28
+
+### 新增
+- ✨ **国内厂商 API Base 自动匹配** - 支持根据 API Key 前缀和 plan_type 自动选择正确的 API 地址
+  - 阿里通义千问：sk-sp- → Coding Plan, sk- → 标准 API
+  - 智谱 AI：支持 coding plan_type → Coding Plan API
+  - 新增 vendors_api_base_rules.json 统一管理配置
+- 📄 **国内厂商 API 配置文档** - docs/domestic_vendors_api_config.md
+
+### 支持厂商列表
+| 厂商 | API Key 前缀 | plan_type | 自动匹配 |
+|------|-------------|-----------|---------|
+| 阿里通义千问 | sk-sp-/sk- | - | ✅ |
+| 阿里百炼 | sk-sp-/sk- | - | ✅ |
+| 智谱 AI | - | coding | ✅ |
+| 深度求索 | sk- | - | ✅ |
+| 月之暗面 | sk- | - | ✅ |
+| 字节豆包 | - | - | ✅ |
+| MiniMax | - | coding | ✅ |
+| 讯飞星火 | - | - | ✅ |
+| 腾讯混元 | - | - | ✅ |
+| 百度千帆 | - | - | ✅ |
+| 阶跃星辰 | - | - | ✅ |
+| 零一万物 | - | - | ✅ |
+
 ## [1.4.3] - 2026-03-28
 
 ### 修复

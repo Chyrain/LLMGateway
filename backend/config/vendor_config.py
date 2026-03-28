@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 
 # 加载 JSON 配置
-_CONFIG_PATH = Path(__file__).parent.parent / "config" / "vendors.json"
+_CONFIG_PATH = Path(__file__).parent / "vendors.json"
+_API_BASE_RULES_PATH = Path(__file__).parent / "vendors_api_base_rules.json"
 
 
 def _load_vendor_config():
@@ -19,7 +20,17 @@ def _load_vendor_config():
     return {"vendors": {}}
 
 
+def _load_api_base_rules():
+    """加载 API Base Rules 配置"""
+    if _API_BASE_RULES_PATH.exists():
+        with open(_API_BASE_RULES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("vendors_api_base_rules", {})
+    return {}
+
+
 _VENDOR_DATA = _load_vendor_config()
+_API_BASE_RULES = _load_api_base_rules()
 
 # 厂商配置 (用于 gateway_core.py)
 VENDOR_CONFIGS = {}
@@ -60,6 +71,72 @@ API_SPECS = _VENDOR_DATA.get("api_specs", {})
 def get_vendor_config(vendor_id: str) -> dict:
     """获取厂商配置"""
     return VENDOR_CONFIGS.get(vendor_id, VENDOR_CONFIGS.get("custom", {}))
+
+
+def get_api_base_for_key(vendor_id: str, api_key: str, plan_type: str = None) -> str:
+    """根据 API Key 前缀和套餐类型获取对应的 API Base 地址
+
+    Args:
+        vendor_id: 厂商 ID
+        api_key: API Key
+        plan_type: 套餐类型 (可选，如 "coding", "standard", "default")
+
+    Returns:
+        str: 对应的 API Base 地址
+    """
+    # 优先从独立配置文件加载 api_base_rules
+    api_base_rules_data = _API_BASE_RULES.get(vendor_id, {})
+
+    if api_base_rules_data:
+        api_base_rules = api_base_rules_data.get("api_base_rules", [])
+        if api_base_rules:
+            for rule in api_base_rules:
+                # 优先匹配 plan_type
+                if plan_type:
+                    match_pattern = rule.get("match_pattern")
+                    rule_plan_type = rule.get("plan_type")
+                    if (match_pattern and plan_type.lower() == match_pattern.lower()) or \
+                       (rule_plan_type and plan_type.lower() == rule_plan_type.lower()):
+                        return rule.get("api_base")
+
+                # 然后匹配 API Key 前缀
+                prefix = rule.get("api_key_prefix")
+                if prefix is not None and api_key.startswith(prefix):
+                    return rule.get("api_base")
+
+            # 如果没有匹配到规则，返回第一个规则的 api_base
+            return api_base_rules[0].get("api_base")
+
+    # 从 vendors.json 中的配置加载（向后兼容）
+    config = get_vendor_config(vendor_id)
+
+    # 检查是否有 api_base_rules 配置
+    api_base_rules = config.get("api_base_rules", [])
+    if api_base_rules:
+        for rule in api_base_rules:
+            # 优先匹配 plan_type
+            if plan_type:
+                match_pattern = rule.get("match_pattern")
+                if match_pattern and plan_type.lower() == match_pattern.lower():
+                    return rule.get("api_base", config.get("api_base"))
+
+            # 然后匹配 API Key 前缀
+            prefix = rule.get("api_key_prefix")
+            if prefix is not None and api_key.startswith(prefix):
+                return rule.get("api_base", config.get("api_base"))
+
+        # 如果没有匹配到规则，返回第一个规则的 api_base
+        return api_base_rules[0].get("api_base", config.get("api_base"))
+
+    # 检查 coding_plan 配置（向后兼容）
+    coding_plan = config.get("coding_plan")
+    if coding_plan:
+        prefix = coding_plan.get("api_key_prefix", "")
+        if prefix and api_key.startswith(prefix):
+            return coding_plan.get("api_base", config.get("api_base"))
+
+    # 返回默认 api_base
+    return config.get("api_base", "")
 
 
 def get_model_capabilities(model_name: str, vendor: str = None) -> dict:
