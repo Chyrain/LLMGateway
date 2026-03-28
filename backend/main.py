@@ -369,22 +369,50 @@ if API_MODE:
         if not model:
             raise HTTPException(status_code=404, detail="模型不存在")
 
-        # 构建测试请求 - 发送实际聊天消息
-        test_messages = [{"role": "user", "content": "你好"}]
-        request_data = {
-            "model": model.model_name,
-            "messages": test_messages,
-            "stream": False,
-        }
+        # 构建测试请求 - 根据 API Path 自动判断使用哪种格式
+        api_path = model.api_path or "/v1/chat/completions"
+
+        # 构建 URL
+        api_base_clean = model.api_base.rstrip("/")
+        if api_path.startswith("/"):
+            url = f"{api_base_clean}{api_path}"
+        else:
+            url = f"{api_base_clean}/{api_path}"
+
+        import httpx
+        # 判断使用哪种格式
+        if "/messages" in api_path or "anthropic" in api_path.lower():
+            # Anthropic 格式
+            request_data = {
+                "model": model.model_name,
+                "messages": [{"role": "user", "content": "你好"}],
+                "max_tokens": 100,
+            }
+            headers = {
+                "Authorization": f"Bearer {model.api_key}",
+                "Content-Type": "application/json",
+            }
+        else:
+            # OpenAI 格式
+            request_data = {
+                "model": model.model_name,
+                "messages": [{"role": "user", "content": "你好"}],
+                "max_tokens": 100,
+                "stream": False,
+            }
+            headers = {
+                "Authorization": f"Bearer {model.api_key}",
+                "Content-Type": "application/json",
+            }
 
         try:
-            # 调用 GatewayCore 发送实际请求
-            response = await GatewayCore.sync_request(
-                vendor=model.vendor,
-                api_base=model.api_base,
-                api_key=model.api_key,
-                request_data=request_data,
-            )
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, json=request_data, headers=headers)
+
+                if response.status_code != 200:
+                    raise Exception(f"API 请求失败：{response.status_code} - {response.text[:500]}")
+
+                response_data = response.json()
 
             # 更新模型状态
             model.connect_status = 1
@@ -394,8 +422,9 @@ if API_MODE:
                 "code": 200,
                 "msg": "连通测试成功",
                 "data": {
+                    "url": url,
                     "request": request_data,
-                    "response": response
+                    "response": response_data
                 }
             }
         except Exception as e:
