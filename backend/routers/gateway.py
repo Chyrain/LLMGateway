@@ -23,7 +23,7 @@ from services.quota_monitor import QuotaMonitor
 from services.sdk_gateway import SDKGateway
 from services.debug_logger import log_four_layers, log_layer, is_enabled
 from routers.config import config_store
-from config.vendor_config import get_api_spec_support, get_anthropic_compat_base, supports_anthropic_via_conversion
+from config.vendor_config import get_api_spec_support, get_anthropic_compat_base, supports_anthropic_via_conversion, get_api_base_for_key
 
 # 创建路由
 gateway_router = APIRouter(prefix="", tags=["网关接口"])
@@ -810,8 +810,8 @@ async def anthropic_messages(
 
                 if use_conversion:
                     # 转换模式：将 Anthropic 格式转换为 OpenAI 格式，使用 OpenAI SDK 转发
-                    anthropic_compat_base = get_anthropic_compat_base(model.vendor)
-                    target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
+                    # 根据 API Key 动态获取正确的 API Base 地址
+                    target_api_base = get_api_base_for_key(model.vendor, model.api_key, None)
 
                     # 将 Anthropic 格式请求转换为 OpenAI 格式
                     # Anthropic messages -> OpenAI messages
@@ -1630,7 +1630,7 @@ def _convert_openai_to_anthropic_response(openai_response: Dict) -> Dict:
             })
 
         # 转换 tool_calls 为 tool_use
-        tool_calls = message.get("tool_calls", [])
+        tool_calls = message.get("tool_calls") or []
         for tc in tool_calls:
             if tc.get("type") == "function":
                 func = tc.get("function", {})
