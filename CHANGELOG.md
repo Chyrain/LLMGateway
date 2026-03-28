@@ -5,7 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
-## [1.4.7] - 2026-03-28
+## [1.4.8] - 2026-03-28
+
+### 新增
+- ✨ **连通性测试自动识别 API 格式** - 根据 API Path 自动判断使用 OpenAI 或 Anthropic 格式
+  - 包含 `/messages` 或 `anthropic` 的路径使用 Anthropic 格式请求
+  - 其他路径使用 OpenAI 格式请求
+  - 返回数据中包含实际请求的 URL 便于调试
 
 ### 修复
 - 🐛 **转换模式 tool_calls None 错误** - 修复 OpenAI 响应中 tool_calls 为 None 时的转换错误
@@ -21,7 +27,7 @@
 - ✅ **流式输出测试** - SSE 格式事件完整 (message_start/content_block_delta/message_delta/message_stop)
 - ✅ **API Key 自动匹配** - `sk-sp-` 前缀自动使用 Coding Plan API
 
-## [1.4.6] - 2026-03-28
+## [1.4.7] - 2026-03-28
 
 ### 修复
 - 🐛 **Anthropic 格式兼容模式实现** - 实现国内厂商 Anthropic 格式请求的转换模式
