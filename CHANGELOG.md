@@ -5,6 +5,48 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.6] - 2026-03-28
+
+### 修复
+- 🐛 **Anthropic 格式兼容模式实现** - 实现国内厂商 Anthropic 格式请求的转换模式
+  -  `/v1/messages` 端点接收 Anthropic 格式请求后，自动转换为 OpenAI 格式
+  - 使用 OpenAI SDK 将请求转发至厂商 API（阿里通义千问、阿里百炼、智谱 AI、MiniMax）
+  - 将 OpenAI 格式响应转换回 Anthropic 格式返回给客户端
+  - 支持完整的 Anthropic Messages API 兼容体验（包括 tool_use）
+
+### 新增
+- ✨ **Anthropic 转换模式配置** - 新增 `anthropic_via_conversion` 配置项
+  - 用于标识厂商是否支持通过转换模式处理 Anthropic 格式请求
+  - 与 `api_spec_support: ["openai"]` 配合使用，区分原生支持和转换支持
+- ✨ **Anthropic 格式转换函数** - 新增 `_convert_openai_to_anthropic_response` 和 `_convert_openai_chunk_to_anthropic_event`
+  - 支持 OpenAI 响应转 Anthropic 格式（非流式和流式）
+  - 支持 tool_calls 到 tool_use 的转换
+  - 支持 finish_reason 到 stop_reason 的映射
+
+### 修改
+- 🔧 `backend/config/vendors_api_base_rules.json` - 更新厂商配置
+  - 所有国内厂商 `api_spec_support` 改为 `["openai"]`（仅支持 OpenAI 格式）
+  - 添加 `anthropic_via_conversion: true` 标识支持转换模式
+  - 保留 `anthropic_compat_base` 用于指定 API Base 地址
+- 🔧 `backend/config/vendor_config.py` - 新增 `supports_anthropic_via_conversion()` 函数
+- 🔧 `backend/routers/gateway.py` - 更新 `/v1/messages` 端点处理逻辑
+  - 根据 `anthropic_via_conversion` 配置决定使用转换模式或原生模式
+  - 转换模式：Anthropic → OpenAI → 厂商 API → OpenAI → Anthropic
+  - 原生模式：直接使用 Anthropic SDK 转发（适用于未来支持原生 Anthropic 的厂商）
+
+### 技术实现
+- 转换模式流程：
+  1. L1: 接收 Anthropic 格式请求（`/v1/messages`）
+  2. 转换：Anthropic messages → OpenAI messages（system 作为 system role）
+  3. L2: 使用 OpenAI SDK 发送至厂商 API
+  4. L3: 接收厂商 OpenAI 格式响应
+  5. 转换：OpenAI response → Anthropic message
+  6. L4: 返回 Anthropic 格式响应给客户端
+- 流式转换：
+  - OpenAI chunk → Anthropic event 实时转换
+  - 支持 message_start, content_block_start, content_block_delta, message_delta, message_stop 事件
+  - 支持 tool_use 事件的流式传输
+
 ## [1.4.5] - 2026-03-28
 
 ### 修复

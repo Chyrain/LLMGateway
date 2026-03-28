@@ -23,7 +23,7 @@ from services.quota_monitor import QuotaMonitor
 from services.sdk_gateway import SDKGateway
 from services.debug_logger import log_four_layers, log_layer, is_enabled
 from routers.config import config_store
-from config.vendor_config import get_api_spec_support, get_anthropic_compat_base
+from config.vendor_config import get_api_spec_support, get_anthropic_compat_base, supports_anthropic_via_conversion
 
 # 创建路由
 gateway_router = APIRouter(prefix="", tags=["网关接口"])
@@ -354,6 +354,9 @@ async def chat_completions(
     )
     print(f"[DEBUG] is_auto_mode: {is_auto_mode}")
 
+    # 定义当前路由端点类型
+    route = "/v1/chat/completions"  # 当前函数处理的路由
+
     # 初始化日志变量
     log = None
     request_time = datetime.now()
@@ -412,8 +415,26 @@ async def chat_completions(
 
         # 决定要尝试的模型列表
         if is_auto_mode:
-            # auto 模式：尝试所有可用模型
-            models_to_try = available_models
+            # auto 模式：根据请求端点类型过滤厂商
+            # /v1/chat/completions 只选择支持 openai 的厂商
+            # /v1/messages 只选择支持 anthropic 的厂商
+            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
+            if route == "/v1/messages":
+                endpoint_type = "anthropic"
+
+            # 根据端点类型过滤模型
+            models_to_try = []
+            for model in available_models:
+                api_spec_support = get_api_spec_support(model.vendor)
+                if endpoint_type in api_spec_support:
+                    models_to_try.append(model)
+
+            # 如果没有找到匹配的模型，返回错误
+            if not models_to_try:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"无可用模型支持 {endpoint_type} 格式，请检查厂商配置"
+                )
         else:
             # 指定具体模型：只试指定的模型
             # 优先选择 api_spec 匹配的模型（OpenAI 端点优先选择 openai 格式）
@@ -421,10 +442,14 @@ async def chat_completions(
             print(
                 f"[DEBUG] Available models: {[m.model_name for m in available_models]}"
             )
+            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
+            if route == "/v1/messages":
+                endpoint_type = "anthropic"
+
             target_model = next(
-                (m for m in available_models if m.model_name == requested_model and m.api_spec == "openai"), None
+                (m for m in available_models if m.model_name == requested_model and m.api_spec == endpoint_type), None
             )
-            # 如果没有找到 openai 格式的模型，尝试查找任意匹配的模型
+            # 如果没有找到匹配格式的模型，尝试查找任意匹配的模型
             if not target_model:
                 target_model = next(
                     (m for m in available_models if m.model_name == requested_model), None
@@ -498,12 +523,13 @@ async def chat_completions(
                         **{key: value for key, value in request.model_extra.items() if value is not None and key != "_request_id"},
                     }, context={"request_id": request_id, "model": request.model or "auto"})
 
-                response = await GatewayCore.sync_request(
-                    model.vendor,
-                    model.api_base,
-                    model.api_key,
-                    request_data,
-                    model.api_path,
+                # 使用 SDK Gateway 进行原生 OpenAI 格式透传（L2 → L3）
+                response = await SDKGateway.sync_request(
+                    api_spec="openai",
+                    api_base=model.api_base,
+                    api_key=model.api_key,
+                    request_data=request_data,
+                    api_path=model.api_path,
                 )
 
                 # 验证响应是否包含错误
@@ -698,6 +724,9 @@ async def anthropic_messages(
     requested_model = request.model
     is_auto_mode = requested_model in ["auto", "Auto", "AUTO", ""] or not requested_model
 
+    # 定义当前路由端点类型
+    route = "/v1/messages"  # 当前函数处理的路由
+
     request_time = datetime.now()
     db = SessionLocal()
 
@@ -720,13 +749,43 @@ async def anthropic_messages(
 
         # 决定要尝试的模型列表
         if is_auto_mode:
-            models_to_try = available_models
+            # auto 模式：根据请求端点类型过滤厂商
+            # /v1/chat/completions 只选择支持 openai 的厂商
+            # /v1/messages 选择支持 anthropic 的厂商（包括原生支持和转换模式支持）
+            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
+            if route == "/v1/messages":
+                endpoint_type = "anthropic"
+
+            # 根据端点类型过滤模型
+            models_to_try = []
+            for model in available_models:
+                api_spec_support = get_api_spec_support(model.vendor)
+                # 检查是否支持 anthropic（包括原生或通过转换）
+                if endpoint_type in api_spec_support or supports_anthropic_via_conversion(model.vendor):
+                    models_to_try.append(model)
+
+            # 如果没有找到匹配的模型，返回错误
+            if not models_to_try:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"无可用模型支持 {endpoint_type} 格式，请检查厂商配置"
+                )
         else:
-            # 优先选择 api_spec 匹配的模型（Anthropic 端点优先选择 anthropic 格式）
+            # 指定具体模型：只试指定的模型
+            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
+            if route == "/v1/messages":
+                endpoint_type = "anthropic"
+
+            # 优先选择 api_spec 匹配的模型
             target_model = next(
-                (m for m in available_models if m.model_name == requested_model and m.api_spec == "anthropic"), None
+                (m for m in available_models if m.model_name == requested_model and m.api_spec == endpoint_type), None
             )
-            # 如果没有找到 anthropic 格式的模型，尝试查找任意匹配的模型
+            # 如果没有找到匹配格式的模型，尝试查找支持转换模式的厂商
+            if not target_model and endpoint_type == "anthropic":
+                target_model = next(
+                    (m for m in available_models if m.model_name == requested_model and supports_anthropic_via_conversion(m.vendor)), None
+                )
+            # 如果还是没有找到，尝试查找任意匹配的模型
             if not target_model:
                 target_model = next(
                     (m for m in available_models if m.model_name == requested_model), None
@@ -746,15 +805,124 @@ async def anthropic_messages(
             start_time = time.time()
 
             try:
-                # 检查厂商是否原生支持 Anthropic 格式
-                # 如果厂商支持 anthropic 格式（如 qwen, bailian, zhipu, minimax），使用原生透传
-                # 否则使用 OpenAI 格式转换兼容
-                api_spec_support = get_api_spec_support(model.vendor)
-                use_native_anthropic = "anthropic" in api_spec_support
+                # 检查厂商是否支持通过转换模式处理 Anthropic 请求
+                use_conversion = supports_anthropic_via_conversion(model.vendor)
 
-                if use_native_anthropic:
-                    # 原生 Anthropic 格式透传 - 使用 SDK 转发
-                    # 使用 anthropic_compat_base 作为 API Base 地址
+                if use_conversion:
+                    # 转换模式：将 Anthropic 格式转换为 OpenAI 格式，使用 OpenAI SDK 转发
+                    anthropic_compat_base = get_anthropic_compat_base(model.vendor)
+                    target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
+
+                    # 将 Anthropic 格式请求转换为 OpenAI 格式
+                    # Anthropic messages -> OpenAI messages
+                    openai_messages = []
+                    system_prompt = None
+
+                    # 处理 system 参数
+                    if request.system:
+                        if isinstance(request.system, str):
+                            system_prompt = request.system
+                        elif isinstance(request.system, list):
+                            # Anthropic system 可以是字符串数组或 content blocks 数组
+                            system_parts = []
+                            for item in request.system:
+                                if isinstance(item, str):
+                                    system_parts.append(item)
+                                elif isinstance(item, dict) and item.get("type") == "text":
+                                    system_parts.append(item.get("text", ""))
+                            system_prompt = "\n".join(system_parts)
+
+                    # 处理 messages
+                    for msg in request.messages:
+                        openai_msg = {"role": msg.role, "content": msg.content}
+                        openai_messages.append(openai_msg)
+
+                    # 构建 OpenAI 格式请求
+                    request_data = {
+                        "model": model.model_name,
+                        "messages": openai_messages,
+                        "max_tokens": request.max_tokens or 1024,
+                        "stream": request.stream,
+                    }
+
+                    # 添加 system prompt（如果存在）
+                    if system_prompt:
+                        # 在 messages 前添加 system 消息
+                        request_data["messages"] = [{"role": "system", "content": system_prompt}] + openai_messages
+
+                    # 透传工具相关参数（转换为 OpenAI 格式）
+                    if request.tools:
+                        request_data["tools"] = request.tools
+                    if request.tool_choice:
+                        request_data["tool_choice"] = request.tool_choice
+
+                    # 透传其他参数
+                    if request.temperature is not None:
+                        request_data["temperature"] = request.temperature
+                    if request.top_p is not None:
+                        request_data["top_p"] = request.top_p
+                    if request.stop_sequences:
+                        request_data["stop"] = request.stop_sequences
+
+                    # 透传 model_extra 中的额外参数
+                    for key, value in request.model_extra.items():
+                        if key not in request_data and value is not None:
+                            request_data[key] = value
+
+                    # 生成请求 ID 用于日志追踪
+                    import uuid
+                    request_id = str(uuid.uuid4())[:8]
+                    request_data["_request_id"] = request_id
+
+                    # L1 日志：记录原始输入请求
+                    if is_enabled():
+                        log_layer("L1", {
+                            "endpoint": "anthropic",
+                            "model": request.model or "auto",
+                            "messages": [msg.model_dump() for msg in request.messages],
+                            "system": request.system,
+                        }, context={"request_id": request_id, "model": request.model or "auto"})
+
+                    # 流式响应
+                    if request.stream:
+                        return StreamingResponse(
+                            _conversion_anthropic_to_openai_stream_with_logging(
+                                model,
+                                request_data,
+                                requested_model,
+                                client_ip,
+                                user_agent,
+                                request.max_tokens or 1024,
+                                target_api_base,
+                                request.tools,
+                            ),
+                            media_type="text/event-stream",
+                            headers={
+                                "Cache-Control": "no-cache",
+                                "Connection": "keep-alive",
+                                "anthropic-version": anthropic_version,
+                            },
+                        )
+                    else:
+                        # 非流式响应 - 使用 OpenAI SDK 转发
+                        response = await SDKGateway.sync_request(
+                            api_spec="openai",
+                            api_base=target_api_base,
+                            api_key=model.api_key,
+                            request_data=request_data,
+                            api_path=model.api_path,
+                        )
+
+                        # 将 OpenAI 响应转换为 Anthropic 格式
+                        if "error" in response:
+                            error_detail = response.get("error", "Unknown error")
+                            error_type = response.get("error_type", "unknown_error")
+                            raise ValueError(f"API 错误 ({error_type}): {error_detail}")
+
+                        # 转换 OpenAI 响应为 Anthropic 格式
+                        response = _convert_openai_to_anthropic_response(response)
+                else:
+                    # 原生模式：使用 Anthropic SDK 直接转发
                     anthropic_compat_base = get_anthropic_compat_base(model.vendor)
                     target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
 
@@ -785,52 +953,9 @@ async def anthropic_messages(
                     for key, value in request.model_extra.items():
                         if key not in request_data and value is not None:
                             request_data[key] = value
-                else:
-                    # 转换为 OpenAI 格式（向后兼容）
-                    target_api_base = model.api_base  # 非原生模式使用原 api_base
-                    # 转换为 OpenAI 格式（向后兼容）
-                    def extract_text_content(content: Union[str, List[dict]]) -> str:
-                        """从 content 中提取文本内容"""
-                        if isinstance(content, str):
-                            return content
-                        elif isinstance(content, list):
-                            text_parts = []
-                            for item in content:
-                                if isinstance(item, dict) and "text" in item:
-                                    text_parts.append(item["text"])
-                            return "".join(text_parts)
-                        return str(content)
 
-                    messages = []
-                    if request.system:
-                        system_content = extract_text_content(request.system)
-                        messages.append({"role": "system", "content": system_content})
-                    for msg in request.messages:
-                        content = extract_text_content(msg.content)
-                        messages.append({"role": msg.role, "content": content})
-
-                    request_data = {
-                        "model": model.model_name,
-                        "messages": messages,
-                        "stream": request.stream,
-                    }
-                    if request.temperature is not None:
-                        request_data["temperature"] = request.temperature
-                    if request.max_tokens is not None:
-                        request_data["max_tokens"] = request.max_tokens
-                    if request.top_p is not None:
-                        request_data["top_p"] = request.top_p
-                    if request.stop_sequences:
-                        request_data["stop"] = request.stop_sequences
-                    for key, value in request.model_extra.items():
-                        if key not in request_data and value is not None:
-                            request_data[key] = value
-
-
-                # 流式响应 - 根据是否原生支持 Anthropic 格式选择 SDK
-                if request.stream:
-                    if use_native_anthropic:
-                        # 使用 Anthropic SDK 流式转发（原生格式透传）
+                    # 流式响应 - 使用 Anthropic SDK 流式转发
+                    if request.stream:
                         return StreamingResponse(
                             _sdk_anthropic_stream_with_logging(
                                 model,
@@ -839,7 +964,7 @@ async def anthropic_messages(
                                 client_ip,
                                 user_agent,
                                 request.max_tokens or 1024,
-                                target_api_base,  # 传递 API Base 地址
+                                target_api_base,
                             ),
                             media_type="text/event-stream",
                             headers={
@@ -849,41 +974,12 @@ async def anthropic_messages(
                             },
                         )
                     else:
-                        # 使用 OpenAI 兼容格式流式转发（需要转换）
-                        return StreamingResponse(
-                            _anthropic_stream_with_logging(
-                                model,
-                                request_data,
-                                requested_model,
-                                client_ip,
-                                user_agent,
-                                request.max_tokens or 1024,
-                            ),
-                            media_type="text/event-stream",
-                            headers={
-                                "Cache-Control": "no-cache",
-                                "Connection": "keep-alive",
-                                "anthropic-version": anthropic_version,
-                            },
-                        )
-                else:
-                    # 非流式响应 - 根据是否原生支持 Anthropic 格式选择 SDK
-                    if use_native_anthropic:
-                        # 使用 Anthropic SDK 转发（原生格式透传）
+                        # 非流式响应 - 使用 Anthropic SDK 转发
                         response = await SDKGateway.sync_request(
                             api_spec="anthropic",
                             api_base=target_api_base,
                             api_key=model.api_key,
                             request_data=request_data,
-                        )
-                    else:
-                        # 使用 OpenAI 兼容格式转发（需要转换）
-                        response = await GatewayCore.sync_request(
-                            model.vendor,
-                            model.api_base,
-                            model.api_key,
-                            request_data,
-                            model.api_path,
                         )
 
                 # 验证响应是否包含错误
@@ -893,195 +989,87 @@ async def anthropic_messages(
                     raise ValueError(f"API 错误 ({error_type}): {error_detail}")
 
                 # 验证响应（支持 text 和 tool_use 内容块）
-                if use_native_anthropic:
-                    # Anthropic 格式响应验证
-                    content_blocks = response.get("content", [])
-                    has_content = False
-                    has_tool_use = False
+                content_blocks = response.get("content", [])
+                has_content = False
+                has_tool_use = False
 
-                    for block in content_blocks:
-                        if isinstance(block, dict):
-                            block_type = block.get("type", "")
-                            if block_type == "text" and block.get("text", "").strip():
-                                has_content = True
-                            elif block_type == "tool_use":
-                                has_tool_use = True
+                for block in content_blocks:
+                    if isinstance(block, dict):
+                        block_type = block.get("type", "")
+                        if block_type == "text" and block.get("text", "").strip():
+                            has_content = True
+                        elif block_type == "tool_use":
+                            has_tool_use = True
 
-                    if not has_content and not has_tool_use:
-                        raise ValueError("模型返回空响应")
-                else:
-                    # OpenAI 格式响应验证
-                    choices = response.get("choices", [])
-                    if not choices or not choices[0].get("message", {}).get("content", "").strip():
-                        raise ValueError("模型返回空响应")
+                if not has_content and not has_tool_use:
+                    raise ValueError("模型返回空响应")
 
                 # 成功：记录日志并返回响应
                 response_time = datetime.now()
                 duration_ms = (time.time() - start_time) * 1000
 
-                # 根据是否原生支持 Anthropic 格式处理响应
-                if use_native_anthropic:
-                    # Anthropic SDK 返回的已经是 Anthropic 格式，直接透传
-                    response_content = ""
-                    content_blocks = response.get("content", [])
-                    for block in content_blocks:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            response_content = block.get("text", "")
-                            break
-                    
-                    usage = response.get("usage", {})
-                    usage_input = usage.get("input_tokens", 0)
-                    usage_output = usage.get("output_tokens", 0)
-                    
-                    # 记录日志
-                    log = OperationLog(
-                        log_type=1,
-                        model_id=model.id,
-                        log_content=json.dumps({
-                            "model": requested_model or "auto",
-                            "actual_model": model.model_name,
-                            "status": "success",
-                            "api": "anthropic_sdk",
-                            "duration_ms": duration_ms,
-                        }),
-                        status=1,
-                        request_time=request_time,
-                        response_time=response_time,
-                        duration_ms=duration_ms,
-                        client_ip=client_ip or "",
-                        user_agent=user_agent or "",
-                        request_model=requested_model or "auto",
-                        actual_model=model.model_name,
-                        vendor=model.vendor,
-                        request_content=json.dumps(request_data, ensure_ascii=False),
-                        response_content=json.dumps(response, ensure_ascii=False)[:10000],
-                        tokens_prompt=usage_input,
-                        tokens_completion=usage_output,
-                        tokens_total=usage_input + usage_output,
-                    )
-                    db.add(log)
-                    db.commit()
+                # Anthropic SDK 返回的已经是 Anthropic 格式，直接透传
+                response_content = ""
+                for block in content_blocks:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        response_content = block.get("text", "")
+                        break
 
-                    # 累加 Token 使用量 - 支持 Anthropic 格式
-                    try:
-                        QuotaMonitor.add_usage(model.id, usage_input + usage_output)
-                    except:
-                        pass
+                usage = response.get("usage", {})
+                usage_input = usage.get("input_tokens", 0)
+                usage_output = usage.get("output_tokens", 0)
 
-                    # 直接返回 Anthropic 格式响应 - 完整透传 content（包括 text 和 tool_use）
-                    content_blocks = response.get("content", [])
+                # 记录日志
+                log = OperationLog(
+                    log_type=1,
+                    model_id=model.id,
+                    log_content=json.dumps({
+                        "model": requested_model or "auto",
+                        "actual_model": model.model_name,
+                        "status": "success",
+                        "api": "anthropic_sdk",
+                        "duration_ms": duration_ms,
+                    }),
+                    status=1,
+                    request_time=request_time,
+                    response_time=response_time,
+                    duration_ms=duration_ms,
+                    client_ip=client_ip or "",
+                    user_agent=user_agent or "",
+                    request_model=requested_model or "auto",
+                    actual_model=model.model_name,
+                    vendor=model.vendor,
+                    request_content=json.dumps(request_data, ensure_ascii=False),
+                    response_content=json.dumps(response, ensure_ascii=False)[:10000],
+                    tokens_prompt=usage_input,
+                    tokens_completion=usage_output,
+                    tokens_total=usage_input + usage_output,
+                )
+                db.add(log)
+                db.commit()
 
-                    return {
-                        "id": response.get("id", f"msg_{int(time.time() * 1000)}"),
-                        "type": "message",
-                        "role": "assistant",
-                        "content": content_blocks,  # 完整透传 content 数组
-                        "model": model.model_name,
-                        "stop_reason": response.get("stop_reason", "end_turn"),
-                        "stop_sequence": response.get("stop_sequence"),
-                        "usage": {
-                            "input_tokens": usage_input,
-                            "output_tokens": usage_output,
-                        },
-                    }
-                else:
-                    # OpenAI 格式响应，需要转换为 Anthropic 格式
-                    choices = response.get("choices", [])
-                    message = choices[0].get("message", {}) if choices else {}
-                    response_content = message.get("content", "")
-                    tool_calls = message.get("tool_calls", None)
-                    usage = response.get("usage", {})
-                    response_json_str = json.dumps(response, ensure_ascii=False)
+                # 累加 Token 使用量 - 支持 Anthropic 格式
+                try:
+                    QuotaMonitor.add_usage(model.id, usage_input + usage_output)
+                except:
+                    pass
 
-                    log = OperationLog(
-                        log_type=1,
-                        model_id=model.id,
-                        log_content=json.dumps({
-                            "model": requested_model or "auto",
-                            "actual_model": model.model_name,
-                            "status": "success",
-                            "api": "anthropic",
-                            "duration_ms": duration_ms,
-                        }),
-                        status=1,
-                        request_time=request_time,
-                        response_time=response_time,
-                        duration_ms=duration_ms,
-                        client_ip=client_ip or "",
-                        user_agent=user_agent or "",
-                        request_model=requested_model or "auto",
-                        actual_model=model.model_name,
-                        vendor=model.vendor,
-                        request_content=json.dumps(request_data, ensure_ascii=False),
-                        response_content=response_json_str[:10000],
-                        tokens_prompt=usage.get("prompt_tokens", 0),
-                        tokens_completion=usage.get("completion_tokens", 0),
-                        tokens_total=usage.get("total_tokens", 0),
-                    )
-                    db.add(log)
-                    db.commit()
+                # 直接返回 Anthropic 格式响应 - 完整透传 content（包括 text 和 tool_use）
+                content_blocks = response.get("content", [])
 
-                    try:
-                        QuotaMonitor.add_usage_from_response(model.id, response)
-                    except:
-                        pass
-
-                    # 构建 content 数组（支持 text 和 tool_use）
-                    content_blocks = []
-                    if response_content:
-                        content_blocks.append({"type": "text", "text": response_content})
-
-                    # 转换 tool_calls 为 Anthropic tool_use 格式
-                    if tool_calls and isinstance(tool_calls, list):
-                        for tc in tool_calls:
-                            tc_id = tc.get("id", f"tooluse_{len(content_blocks)}")
-                            tc_function = tc.get("function", {})
-                            tc_name = tc_function.get("name", "")
-                            tc_arguments = tc_function.get("arguments", "{}")
-
-                            # 解析 arguments 为 JSON 对象
-                            try:
-                                input_data = json.loads(tc_arguments)
-                            except (json.JSONDecodeError, TypeError):
-                                input_data = tc_arguments if isinstance(tc_arguments, dict) else {}
-
-                            content_blocks.append({
-                                "type": "tool_use",
-                                "id": tc_id,
-                                "name": tc_name,
-                                "input": input_data,
-                            })
-
-                    stop_reason = "end_turn"
-                    if choices and len(choices) > 0:
-                        finish_reason = choices[0].get("finish_reason")
-                        if finish_reason == "stop":
-                            stop_reason = "end_turn"
-                        elif finish_reason == "length":
-                            stop_reason = "max_tokens"
-                        elif finish_reason == "tool_calls":
-                            stop_reason = "tool_use"
-                        elif finish_reason == "content_filter":
-                            stop_reason = "end_turn"
-                        elif finish_reason:
-                            stop_reason = finish_reason
-
-                    stop_sequence = response.get("stop_sequence")
-
-                    return {
-                        "id": f"msg_{int(time.time() * 1000)}",
-                        "type": "message",
-                        "role": "assistant",
-                        "content": content_blocks,  # 返回包含 text 和 tool_use 的数组
-                        "model": model.model_name,
-                        "stop_reason": stop_reason,
-                        "stop_sequence": stop_sequence,
-                        "usage": {
-                            "input_tokens": usage.get("prompt_tokens", 0),
-                            "output_tokens": usage.get("completion_tokens", 0),
-                        },
-                    }
-
+                return {
+                    "id": response.get("id", f"msg_{int(time.time() * 1000)}"),
+                    "type": "message",
+                    "role": "assistant",
+                    "content": content_blocks,  # 完整透传 content 数组
+                    "model": model.model_name,
+                    "stop_reason": response.get("stop_reason", "end_turn"),
+                    "stop_sequence": response.get("stop_sequence"),
+                    "usage": {
+                        "input_tokens": usage_input,
+                        "output_tokens": usage_output,
+                    },
+                }
 
             except Exception as e:
                 last_error = e
@@ -1370,4 +1358,318 @@ async def _sdk_anthropic_stream_with_logging(
                 db.close()
         except Exception as e:
             print(f"[ERROR] Anthropic SDK 流式日志记录异常：{e}")
+
+
+async def _conversion_anthropic_to_openai_stream_with_logging(
+    model,
+    request_data: dict,
+    requested_model: Optional[str],
+    client_ip: Optional[str],
+    user_agent: Optional[str],
+    max_tokens: int,
+    api_base_override: Optional[str] = None,
+    tools: Optional[List[Dict]] = None,
+):
+    """转换模式流式请求：Anthropic -> OpenAI -> Anthropic
+
+    将 Anthropic 格式请求转换为 OpenAI 格式，使用 OpenAI SDK 转发，
+    然后将流式响应转换回 Anthropic 格式返回。
+    """
+    request_time = datetime.now()
+    start_time = time.time()
+    collected_content = []
+    collected_tool_calls = []
+    usage_data = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    error_message = None
+    finish_reason = None
+
+    try:
+        # 使用 SDKGateway 进行 OpenAI 格式流式转发
+        async for chunk in SDKGateway.stream_request(
+            api_spec="openai",
+            api_base=api_base_override if api_base_override else model.api_base,
+            api_key=model.api_key,
+            request_data=request_data,
+            api_path=model.api_path,
+        ):
+            # 将 OpenAI 流式响应转换为 Anthropic 格式
+            if chunk.startswith("data: "):
+                try:
+                    data_str = chunk[6:].strip()
+                    if data_str and data_str != "[DONE]":
+                        openai_chunk = json.loads(data_str)
+
+                        # 转换为 Anthropic 格式的事件
+                        anthropic_event = _convert_openai_chunk_to_anthropic_event(
+                            openai_chunk, collected_content, collected_tool_calls
+                        )
+
+                        if anthropic_event:
+                            yield f"event: {anthropic_event['type']}\ndata: {json.dumps(anthropic_event, ensure_ascii=False)}\n\n"
+
+                        # 收集 usage 信息
+                        if openai_chunk.get("usage"):
+                            usage = openai_chunk["usage"]
+                            usage_data["input_tokens"] = usage.get("prompt_tokens", 0)
+                            usage_data["output_tokens"] = usage.get("completion_tokens", 0)
+                            usage_data["total_tokens"] = usage.get("total_tokens", 0)
+
+                    elif data_str == "[DONE]":
+                        # 发送 message_stop 事件
+                        yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
+
+                except Exception as e:
+                    print(f"[WARN] 转换流式数据失败：{e}")
+                    pass
+            else:
+                # 直接转发非 data: 开头的 chunk（如 event:）
+                yield chunk
+
+    except Exception as e:
+        error_message = str(e)
+        raise
+    finally:
+        try:
+            response_time = datetime.now()
+            duration_ms = (time.time() - start_time) * 1000
+
+            db = SessionLocal()
+            try:
+                log = OperationLog(
+                    log_type=1,
+                    model_id=model.id,
+                    log_content=json.dumps({
+                        "model": requested_model or "auto",
+                        "actual_model": model.model_name,
+                        "api": "openai_sdk_with_anthropic_conversion",
+                        "status": "success" if not error_message else "error",
+                        "duration_ms": duration_ms,
+                        "finish_reason": finish_reason,
+                    }),
+                    status=0 if error_message else 1,
+                    request_time=request_time,
+                    response_time=response_time,
+                    duration_ms=duration_ms,
+                    client_ip=client_ip or "",
+                    user_agent=user_agent or "",
+                    request_model=requested_model or "auto",
+                    actual_model=model.model_name,
+                    vendor=model.vendor,
+                    tokens_prompt=usage_data.get("input_tokens", 0),
+                    tokens_completion=usage_data.get("output_tokens", 0),
+                    tokens_total=usage_data.get("total_tokens", 0),
+                    error_message=error_message,
+                )
+                db.add(log)
+                db.commit()
+
+                if usage_data["total_tokens"] > 0:
+                    QuotaMonitor.add_usage(model.id, usage_data["total_tokens"])
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[ERROR] 转换模式流式日志记录异常：{e}")
+
+
+def _convert_openai_chunk_to_anthropic_event(
+    openai_chunk: Dict,
+    collected_content: List[str],
+    collected_tool_calls: List[Dict],
+) -> Optional[Dict]:
+    """将 OpenAI 流式 chunk 转换为 Anthropic 格式事件
+
+    OpenAI chunk 结构:
+    {
+        "id": "chatcmpl-xxx",
+        "choices": [{"delta": {"role": "assistant", "content": "..."}, "finish_reason": None}],
+        "created": 1234567890,
+        "model": "gpt-4",
+        "object": "chat.completion.chunk"
+    }
+
+    返回 Anthropic 事件:
+    - message_start
+    - content_block_start
+    - content_block_delta (type: text_delta)
+    - content_block_stop
+    - message_delta (with stop_reason and usage)
+    - message_stop
+    """
+    if not openai_chunk.get("choices"):
+        return None
+
+    choice = openai_chunk["choices"][0]
+    delta = choice.get("delta", {})
+    finish_reason = choice.get("finish_reason")
+
+    events = []
+
+    # 处理角色消息（message_start）
+    if delta.get("role") == "assistant":
+        return {
+            "type": "message_start",
+            "message": {
+                "id": f"msg_{openai_chunk.get('id', 'unknown')}",
+                "role": "assistant",
+                "content": [],
+                "model": openai_chunk.get("model", "unknown"),
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 0, "output_tokens": 0}
+            }
+        }
+
+    # 处理文本内容
+    if delta.get("content"):
+        collected_content.append(delta["content"])
+        return {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "text_delta",
+                "text": delta["content"]
+            }
+        }
+
+    # 处理 tool_calls
+    if delta.get("tool_calls"):
+        for tc in delta["tool_calls"]:
+            tool_call = {
+                "index": len(collected_tool_calls),
+                "id": tc.get("id", f"toolu_{len(collected_tool_calls)}"),
+                "type": "tool_use",
+                "name": tc.get("function", {}).get("name", ""),
+                "input": {}
+            }
+            collected_tool_calls.append(tool_call)
+
+            # 返回 tool_use 事件
+            return {
+                "type": "content_block_start",
+                "index": tool_call["index"],
+                "content_block": {
+                    "type": "tool_use",
+                    "id": tool_call["id"],
+                    "name": tool_call["name"],
+                    "input": {}
+                }
+            }
+
+    # 处理 finish_reason
+    if finish_reason:
+        anthropic_stop_reason = _convert_openai_finish_reason_to_anthropic(finish_reason)
+        return {
+            "type": "message_delta",
+            "delta": {
+                "stop_reason": anthropic_stop_reason,
+                "stop_sequence": None
+            },
+            "usage": {
+                "output_tokens": 0  # 实际值会在后续更新
+            }
+        }
+
+    return None
+
+
+def _convert_openai_finish_reason_to_anthropic(openai_reason: str) -> str:
+    """将 OpenAI finish_reason 转换为 Anthropic stop_reason"""
+    mapping = {
+        "stop": "end_turn",
+        "length": "max_tokens",
+        "tool_calls": "tool_use",
+        "content_filter": "end_turn",
+        "function_call": "tool_use",
+    }
+    return mapping.get(openai_reason, "end_turn")
+
+
+def _convert_openai_to_anthropic_response(openai_response: Dict) -> Dict:
+    """将 OpenAI 响应转换为 Anthropic 格式
+
+    OpenAI 响应结构:
+    {
+        "id": "chatcmpl-xxx",
+        "object": "chat.completion",
+        "created": 1234567890,
+        "model": "gpt-4",
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": "...", "tool_calls": [...]},
+            "finish_reason": "stop"
+        }],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+    }
+
+    返回 Anthropic 格式:
+    {
+        "id": "msg_xxx",
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "text", "text": "..."}],
+        "model": "claude-xxx",
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {"input_tokens": 10, "output_tokens": 20}
+    }
+    """
+    # 提取内容
+    content_blocks = []
+    tool_use_blocks = []
+
+    if openai_response.get("choices"):
+        choice = openai_response["choices"][0]
+        message = choice.get("message", {})
+
+        # 添加文本内容
+        content = message.get("content", "")
+        if content:
+            content_blocks.append({
+                "type": "text",
+                "text": content
+            })
+
+        # 转换 tool_calls 为 tool_use
+        tool_calls = message.get("tool_calls", [])
+        for tc in tool_calls:
+            if tc.get("type") == "function":
+                func = tc.get("function", {})
+                try:
+                    input_args = json.loads(func.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    input_args = {}
+
+                tool_use_blocks.append({
+                    "type": "tool_use",
+                    "id": tc.get("id", f"toolu_{len(tool_use_blocks)}"),
+                    "name": func.get("name", ""),
+                    "input": input_args
+                })
+
+        # 合并内容块（先文本后工具）
+        content_blocks.extend(tool_use_blocks)
+
+    # 转换 finish_reason
+    finish_reason = "stop"
+    if openai_response.get("choices"):
+        finish_reason = openai_response["choices"][0].get("finish_reason", "stop")
+    stop_reason = _convert_openai_finish_reason_to_anthropic(finish_reason)
+
+    # 提取 usage
+    usage = openai_response.get("usage", {})
+
+    # 构建 Anthropic 格式响应
+    return {
+        "id": f"msg_{openai_response.get('id', 'unknown')}",
+        "type": "message",
+        "role": "assistant",
+        "content": content_blocks,
+        "model": openai_response.get("model", "unknown"),
+        "stop_reason": stop_reason,
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0)
+        }
+    }
 

@@ -55,6 +55,19 @@ def get_anthropic_compat_base(vendor_id: str) -> str:
     return api_base_rules_data.get("anthropic_compat_base", "")
 
 
+def supports_anthropic_via_conversion(vendor_id: str) -> bool:
+    """检查厂商是否支持通过转换模式处理 Anthropic 格式请求
+
+    Args:
+        vendor_id: 厂商 ID
+
+    Returns:
+        bool: 是否支持 Anthropic 转换模式
+    """
+    api_base_rules_data = _API_BASE_RULES.get(vendor_id, {})
+    return api_base_rules_data.get("anthropic_via_conversion", False)
+
+
 _VENDOR_DATA = _load_vendor_config()
 _API_BASE_RULES = _load_api_base_rules()
 
