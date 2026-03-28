@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.4.2] - 2026-03-28
+
+### 新增
+- 📦 **阿里百炼厂商支持** - 新增 bailian 厂商模型配置
+  - qwen3.5-plus, glm-5, kimi-k2.5, MiniMax-M2.5 等 8 个模型
+  - 支持 Coding Plan API 配额同步
+
+### 修复
+- 🐛 **glm-5 模型配置冲突** - 禁用 ollama 厂商的 glm-5 配置，使用 bailian 厂商
+- 🐛 **MiniMax tool_call 解析增强** - 完善 struct Tool 和 XML 格式解析
+  - 修复 struct Tool 格式的 skill_input 参数解析，支持 JSON 参数透传
+  - 修复 XML 格式的 parameter 标签正则匹配，添加结束标签
+  - 添加完整的测试用例覆盖 (test_all_minimax.py)
+
 ## [1.4.1] - 2026-03-23
 
 ### 修复
