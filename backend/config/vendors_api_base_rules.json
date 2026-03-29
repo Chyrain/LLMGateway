@@ -4,12 +4,12 @@
 
   "vendors_api_base_rules": {
     "qwen": {
-      "_comment": "阿里通义千问 - Anthropic 兼容通过转换模式支持",
+      "_comment": "阿里通义千问 - 原生支持 Anthropic 格式",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
           "api_base": "https://coding.dashscope.aliyuncs.com/v1",
-          "description": "通义灵码 Coding Plan API (支持 OpenAI/Anthropic 转换)"
+          "description": "通义灵码 Coding Plan API (支持 OpenAI/Anthropic 原生格式)"
         },
         {
           "api_key_prefix": "sk-",
@@ -17,18 +17,18 @@
           "description": "标准 API (按 Token 计费)"
         }
       ],
-      "api_spec_support": ["openai"],
-      "anthropic_via_conversion": true,
-      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/v1"
+      "api_spec_support": ["openai", "anthropic"],
+      "anthropic_via_conversion": false,
+      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
     },
 
     "bailian": {
-      "_comment": "阿里百炼 - Anthropic 兼容通过转换模式支持",
+      "_comment": "阿里百炼 - 原生支持 Anthropic 格式",
       "api_base_rules": [
         {
           "api_key_prefix": "sk-sp-",
           "api_base": "https://coding.dashscope.aliyuncs.com/v1",
-          "description": "百炼 Coding Plan API (支持 OpenAI/Anthropic 转换)"
+          "description": "百炼 Coding Plan API (支持 OpenAI/Anthropic 原生格式)"
         },
         {
           "api_key_prefix": "sk-",
@@ -36,9 +36,9 @@
           "description": "百炼标准 API (按 Token 计费)"
         }
       ],
-      "api_spec_support": ["openai"],
-      "anthropic_via_conversion": true,
-      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/v1"
+      "api_spec_support": ["openai", "anthropic"],
+      "anthropic_via_conversion": false,
+      "anthropic_compat_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
     },
 
     "zhipu": {

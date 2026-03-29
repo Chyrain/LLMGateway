@@ -409,7 +409,12 @@ class SDKGateway:
 
     @staticmethod
     def _clean_openai_request(data: Dict[str, Any]) -> Dict[str, Any]:
-        """清理 OpenAI 请求，移除不支持的字段"""
+        """清理 OpenAI 请求，移除不支持的字段
+
+        注意：thinking 参数仅部分厂商支持（如 DeepSeek R1），
+        百炼、智谱等厂商不支持，需要在 router 层根据 vendor 移除。
+        此处保留该字段，由上层决定是否需要过滤。
+        """
         # 保留所有标准字段
         allowed_fields = {
             "model", "messages", "temperature", "top_p", "n", "stream",

@@ -413,57 +413,101 @@ async def chat_completions(
             db.commit()
             raise HTTPException(status_code=503, detail="无可用模型，请先配置模型")
 
-        # 决定要尝试的模型列表
-        if is_auto_mode:
-            # auto 模式：根据请求端点类型过滤厂商
-            # /v1/chat/completions 只选择支持 openai 的厂商
-            # /v1/messages 只选择支持 anthropic 的厂商
-            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
-            if route == "/v1/messages":
-                endpoint_type = "anthropic"
+        # 决定要尝试的模型列表 - 按规则匹配，同规则内按优先级排序
+        # 规则：
+        # 1. Anthropic 请求 → 优先支持 Anthropic 的厂商 → 直接透传
+        # 2. OpenAI 请求 → 优先支持 OpenAI 的厂商 → 直接透传
+        # 3. 如果首选格式没有匹配厂商 → 转换为另一种格式 → 透传到支持该格式的厂商
 
-            # 根据端点类型过滤模型
-            models_to_try = []
+        endpoint_type = "openai"  # 默认当前是 OpenAI 端点
+        if route == "/v1/messages":
+            endpoint_type = "anthropic"
+
+        # 检查是否有指定模型
+        if is_auto_mode:
+            # auto 模式：先按规则匹配，再按优先级排序
+            primary_models = []
+            fallback_models = []
+
             for model in available_models:
                 api_spec_support = get_api_spec_support(model.vendor)
                 if endpoint_type in api_spec_support:
-                    models_to_try.append(model)
+                    # 支持首选格式 → 直接透传
+                    primary_models.append(model)
+                else:
+                    # 不支持首选格式，但可以转换
+                    other_formats = {"openai", "anthropic"} - set(api_spec_support)
+                    if other_formats:  # 支持另一种格式
+                        fallback_models.append(model)
 
-            # 如果没有找到匹配的模型，返回错误
-            if not models_to_try:
+            # 按优先级排序
+            primary_models = sorted(primary_models, key=lambda m: m.priority or 999)
+            fallback_models = sorted(fallback_models, key=lambda m: m.priority or 999)
+
+            # 优先使用支持首选格式的厂商（已按优先级排序）
+            if primary_models:
+                models_to_try = primary_models
+                use_conversion = False  # 直接透传
+                print(f"[INFO] auto 模式：找到 {len(primary_models)} 个支持 {endpoint_type} 格式的模型，按优先级直接透传")
+            elif fallback_models:
+                models_to_try = fallback_models
+                use_conversion = True  # 需要转换格式
+                print(f"[INFO] auto 模式：无支持 {endpoint_type} 格式的模型，将转换为另一种格式后透传")
+            else:
                 raise HTTPException(
                     status_code=503,
-                    detail=f"无可用模型支持 {endpoint_type} 格式，请检查厂商配置"
+                    detail=f"无可用模型支持任何格式"
                 )
         else:
-            # 指定具体模型：只试指定的模型
-            # 优先选择 api_spec 匹配的模型（OpenAI 端点优先选择 openai 格式）
+            # 指定具体模型：按优先级顺序查找
             print(f"[DEBUG] Looking for model: '{requested_model}'")
-            print(
-                f"[DEBUG] Available models: {[m.model_name for m in available_models]}"
-            )
-            endpoint_type = "openai"  # 默认当前是 OpenAI 端点
-            if route == "/v1/messages":
-                endpoint_type = "anthropic"
+            print(f"[DEBUG] Available models: {[m.model_name for m in available_models]}")
 
-            target_model = next(
-                (m for m in available_models if m.model_name == requested_model and m.api_spec == endpoint_type), None
-            )
-            # 如果没有找到匹配格式的模型，尝试查找任意匹配的模型
+            # 按优先级顺序查找指定模型
+            sorted_available = sorted(available_models, key=lambda m: m.priority or 999)
+            target_model = None
+            for model in sorted_available:
+                if model.model_name == requested_model:
+                    target_model = model
+                    break
+
             if not target_model:
-                target_model = next(
-                    (m for m in available_models if m.model_name == requested_model), None
-                )
-            print(f"[DEBUG] target_model found: {target_model}")
-            if target_model:
-                models_to_try = [target_model]
-            else:
-                # 指定模型不存在或不可用
-                print(f"[DEBUG] Model not found, raising 404")
                 raise HTTPException(
                     status_code=404,
-                    detail=f"模型 '{requested_model}' 不存在或不可用",
+                    detail=f"模型 '{requested_model}' 不存在或不可用"
                 )
+
+            # 检查厂商支持哪些格式
+            api_spec_support = get_api_spec_support(target_model.vendor)
+            vendor_supports_both = "openai" in api_spec_support and "anthropic" in api_spec_support
+
+            # 如果厂商支持两种格式，根据请求端点自动适配
+            if vendor_supports_both:
+                models_to_try = [target_model]
+                use_conversion = False
+                print(f"[INFO] 指定模型 {requested_model} (厂商 {target_model.vendor} 支持双格式)，按请求端点 {endpoint_type} 透传")
+            # 厂商只支持一种格式，检查是否需要转换
+            elif endpoint_type in api_spec_support:
+                models_to_try = [target_model]
+                use_conversion = False
+                print(f"[INFO] 指定模型 {requested_model} 支持 {endpoint_type} 格式，直接透传")
+            elif "anthropic" in api_spec_support and endpoint_type == "openai":
+                # OpenAI 请求，厂商只支持 Anthropic → 转换为 Anthropic
+                models_to_try = [target_model]
+                use_conversion = True
+                print(f"[INFO] 指定模型 {requested_model} 只支持 anthropic，将 OpenAI 转换为 Anthropic 格式")
+            elif "openai" in api_spec_support and endpoint_type == "anthropic":
+                # Anthropic 请求，厂商只支持 OpenAI → 转换为 OpenAI
+                models_to_try = [target_model]
+                use_conversion = True
+                print(f"[INFO] 指定模型 {requested_model} 只支持 openai，将 Anthropic 转换为 OpenAI 格式")
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"模型 '{requested_model}' 不支持请求的 {endpoint_type} 格式"
+                )
+
+            print(f"[DEBUG] target_model found: {target_model}, priority: {target_model.priority}, use_conversion: {use_conversion}")
 
         last_error = None
         successful_model = None
@@ -501,6 +545,13 @@ async def chat_completions(
                     if "tool_choice" in request_data:
                         print(f"[WARN] qwen thinking 模式不支持 tool_choice，已移除")
                         del request_data["tool_choice"]
+
+                # 特殊处理：百炼 API 不支持 thinking 参数
+                # thinking 参数仅部分厂商支持（如 DeepSeek R1）
+                if model.vendor in ["qwen", "bailian", "zhipu", "minimax"]:
+                    if "thinking" in request_data:
+                        print(f"[WARN] {model.vendor} API 不支持 thinking 参数，已移除")
+                        del request_data["thinking"]
                 
                 # 透传任何其他额外字段
                 for key, value in request.model_extra.items():
@@ -523,13 +574,52 @@ async def chat_completions(
                         **{key: value for key, value in request.model_extra.items() if value is not None and key != "_request_id"},
                     }, context={"request_id": request_id, "model": request.model or "auto"})
 
-                # 使用 SDK Gateway 进行原生 OpenAI 格式透传（L2 → L3）
+                # 对于双格式厂商，根据请求端点选择对应 api_spec 的模型配置
+                # 数据库中同一模型可能有两条记录 (openai 和 anthropic)，需要选择匹配当前请求端点的记录
+                api_spec_support = get_api_spec_support(model.vendor)
+                vendor_supports_both = "openai" in api_spec_support and "anthropic" in api_spec_support
+
+                if vendor_supports_both and route == "/v1/messages":
+                    # Anthropic 请求 → 查找 api_spec=anthropic 的模型记录
+                    target_api_base = model.api_base
+                    target_api_path = model.api_path
+                    target_api_spec = model.api_spec
+                    # 如果当前模型记录不匹配，查找正确的记录
+                    if model.api_spec != "anthropic":
+                        for m in available_models:
+                            if m.model_name == model.model_name and m.api_spec == "anthropic":
+                                target_api_base = m.api_base
+                                target_api_path = m.api_path
+                                target_api_spec = m.api_spec
+                                print(f"[INFO] 厂商 {model.vendor} 支持双格式，Anthropic 请求使用：{target_api_base}{target_api_path}")
+                                break
+                elif vendor_supports_both and route == "/v1/chat/completions":
+                    # OpenAI 请求 → 查找 api_spec=openai 的模型记录
+                    target_api_base = model.api_base
+                    target_api_path = model.api_path
+                    target_api_spec = model.api_spec
+                    # 如果当前模型记录不匹配，查找正确的记录
+                    if model.api_spec != "openai":
+                        for m in available_models:
+                            if m.model_name == model.model_name and m.api_spec == "openai":
+                                target_api_base = m.api_base
+                                target_api_path = m.api_path
+                                target_api_spec = m.api_spec
+                                print(f"[INFO] 厂商 {model.vendor} 支持双格式，OpenAI 请求使用：{target_api_base}{target_api_path}")
+                                break
+                else:
+                    # 单格式厂商，使用模型配置
+                    target_api_base = model.api_base
+                    target_api_path = model.api_path
+                    target_api_spec = model.api_spec
+
+                # 使用 SDK Gateway 进行原生格式透传（L2 → L3）
                 response = await SDKGateway.sync_request(
-                    api_spec="openai",
-                    api_base=model.api_base,
+                    api_spec=target_api_spec,
+                    api_base=target_api_base,
                     api_key=model.api_key,
                     request_data=request_data,
-                    api_path=model.api_path,
+                    api_path=target_api_path,
                 )
 
                 # 验证响应是否包含错误
@@ -850,7 +940,7 @@ async def anthropic_messages(
                         # 在 messages 前添加 system 消息
                         request_data["messages"] = [{"role": "system", "content": system_prompt}] + openai_messages
 
-                    # 透传工具相关参数（转换为 OpenAI 格式）
+                    # 透传工具相关参数（百炼原生支持 Anthropic 格式，直接透传）
                     if request.tools:
                         request_data["tools"] = request.tools
                     if request.tool_choice:
@@ -868,6 +958,13 @@ async def anthropic_messages(
                     for key, value in request.model_extra.items():
                         if key not in request_data and value is not None:
                             request_data[key] = value
+
+                    # 特殊处理：百炼 API 不支持 thinking 参数
+                    # thinking 参数仅部分厂商支持（如 DeepSeek R1）
+                    if model.vendor in ["qwen", "bailian", "zhipu", "minimax"]:
+                        if "thinking" in request_data:
+                            print(f"[WARN] {model.vendor} API 不支持 thinking 参数，已移除")
+                            del request_data["thinking"]
 
                     # 生成请求 ID 用于日志追踪
                     import uuid
@@ -923,8 +1020,27 @@ async def anthropic_messages(
                         response = _convert_openai_to_anthropic_response(response)
                 else:
                     # 原生模式：使用 Anthropic SDK 直接转发
-                    anthropic_compat_base = get_anthropic_compat_base(model.vendor)
-                    target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
+                    # 对于双格式厂商，根据请求端点选择对应 api_spec 的模型配置
+                    api_spec_support = get_api_spec_support(model.vendor)
+                    vendor_supports_both = "openai" in api_spec_support and "anthropic" in api_spec_support
+
+                    if vendor_supports_both:
+                        # 双格式厂商，查找 api_spec=anthropic 的模型记录
+                        target_api_base = model.api_base
+                        target_api_path = model.api_path
+                        # 如果当前模型记录不是 anthropic，查找正确的记录
+                        if model.api_spec != "anthropic":
+                            for m in available_models:
+                                if m.model_name == model.model_name and m.api_spec == "anthropic":
+                                    target_api_base = m.api_base
+                                    target_api_path = m.api_path
+                                    print(f"[INFO] 厂商 {model.vendor} 支持双格式，Anthropic 请求使用：{target_api_base}{target_api_path}")
+                                    break
+                    else:
+                        # 单格式厂商，使用模型配置
+                        anthropic_compat_base = get_anthropic_compat_base(model.vendor)
+                        target_api_base = anthropic_compat_base if anthropic_compat_base else model.api_base
+                        target_api_path = model.api_path
 
                     request_data = {
                         "model": model.model_name,
@@ -980,6 +1096,7 @@ async def anthropic_messages(
                             api_base=target_api_base,
                             api_key=model.api_key,
                             request_data=request_data,
+                            api_path=target_api_path,
                         )
 
                 # 验证响应是否包含错误

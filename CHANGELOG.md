@@ -5,6 +5,43 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/)，
 并遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.5.0] - 2026-03-29
+
+### 新增
+- ✨ **双格式厂商动态端点路由** - 根据请求端点类型自动选择正确的模型配置
+  - 支持双格式的厂商 (qwen/bailian) 根据请求端点自动路由到对应的 API
+  - OpenAI 格式请求 → 使用 `api_spec=openai` 的模型配置 (api_base + api_path)
+  - Anthropic 格式请求 → 使用 `api_spec=anthropic` 的模型配置 (api_base + api_path)
+  - 直接使用模型配置的 API Base 和 API Path，不做动态修改
+
+### 修复
+- 🐛 **双格式厂商模型选择逻辑** - 修复指定模型时未正确选择对应 api_spec 记录的问题
+  - 当用户指定模型名称时，根据请求端点类型查找匹配 api_spec 的模型记录
+  - 从数据库模型配置中正确获取 api_base 和 api_path
+- 🐛 **/v1/messages 端点路由** - 修复 Anthropic 端点的模型配置选择逻辑
+- 🐛 **/v1/chat/completions 端点路由** - 修复 OpenAI 端点的模型配置选择逻辑
+
+### 修改
+- 🔧 `backend/routers/gateway.py` - 为 `/v1/chat/completions` 和 `/v1/messages` 端点添加模型配置选择逻辑
+  - 检查厂商是否支持双格式 (`vendor_supports_both`)
+  - 根据请求端点类型查找匹配 api_spec 的模型记录
+  - 使用模型记录的 api_base 和 api_path 组合成完整请求地址
+
+## [1.4.9] - 2026-03-29
+
+### 修复
+- 🔧 **百炼 Anthropic 原生支持** - 修正阿里百炼平台的 Anthropic 格式支持方式
+  - 百炼平台原生支持 Anthropic 格式，不需要转换
+  - 更新 `anthropic_compat_base` 为 `https://coding.dashscope.aliyuncs.com/apps/anthropic`
+  - `api_spec_support` 改为 `["openai", "anthropic"]`（原生支持两种格式）
+  - `anthropic_via_conversion` 改为 `false`（不使用转换模式）
+  - Anthropic 格式请求直接透传到百炼 API，保持 tools 等参数原样
+
+### 修改
+- 📝 **vendors_api_base_rules.json** - 更新 qwen 和 bailian 厂商配置
+  - Anthropic 请求使用正确的 Base URL: `/apps/anthropic`
+  - tools/tool_choice 等参数原样透传，不做转换
+
 ## [1.4.8] - 2026-03-28
 
 ### 新增
@@ -14,6 +51,14 @@
   - 返回数据中包含实际请求的 URL 便于调试
 
 ### 修复
+- 🐛 **Anthropic tools 格式转换** - 修复 Anthropic 转 OpenAI 模式时 tools 参数格式错误
+  - 新增 `_convert_anthropic_tools_to_openai()` 函数
+  - 将 Anthropic 格式的 `input_schema` 转换为 OpenAI 格式的 `parameters`
+  - 将 Anthropic 格式的 `tool_choice` 转换为 OpenAI 格式
+- 🐛 **thinking 参数兼容性问题** - 修复百炼等厂商不支持 thinking 参数导致的 API 错误
+  - 从 `_clean_openai_request` 允许列表中移除 `thinking` 字段
+  - 在网关路由中自动移除发送给 qwen/bailian/zhipu/minimax 的 `thinking` 参数
+  - 仅 DeepSeek R1 等部分厂商支持 `thinking` 参数
 - 🐛 **转换模式 tool_calls None 错误** - 修复 OpenAI 响应中 tool_calls 为 None 时的转换错误
   - 使用 `message.get("tool_calls") or []` 确保始终为可迭代对象
 
@@ -26,6 +71,9 @@
 - ✅ **基础对话测试** - 单轮和多轮对话正常
 - ✅ **流式输出测试** - SSE 格式事件完整 (message_start/content_block_delta/message_delta/message_stop)
 - ✅ **API Key 自动匹配** - `sk-sp-` 前缀自动使用 Coding Plan API
+- ✅ **Kimi K2.5 连通性测试** - 百炼 Kimi K2.5 模型 Anthropic 格式请求完整可用
+  - 连通性测试自动识别 `/messages` 路径使用 Anthropic 格式
+  - 响应正确转换为 Anthropic 格式返回（含 stop_reason、type、content 数组）
 
 ## [1.4.7] - 2026-03-28
 
