@@ -211,6 +211,12 @@ curl -X POST "http://localhost:8000/api/models" \
 
 ## 更新记录
 
+- **2026-03-29 (v1.5.0)**: 双格式厂商动态端点路由
+  - 支持双格式的厂商 (qwen/bailian) 根据请求端点自动路由到对应的 API
+  - OpenAI 格式请求 → 使用 `api_spec=openai` 的模型配置
+  - Anthropic 格式请求 → 使用 `api_spec=anthropic` 的模型配置
+  - 新增阿里百炼原生 Anthropic 格式支持：`https://coding.dashscope.aliyuncs.com/apps/anthropic`
+
 - **2026-03-28**: 初始版本，添加 11 个国内厂商配置
-- 支持根据 API Key 前缀自动匹配 API 地址
-- 支持 Coding Plan 和标准 API 两种模式
+  - 支持根据 API Key 前缀自动匹配 API 地址
+  - 支持 Coding Plan 和标准 API 两种模式

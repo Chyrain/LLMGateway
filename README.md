@@ -392,7 +392,38 @@ GATEWAY_PORT=8080
 
 ## 📝 更新日志
 
-### v1.3.0 (2026-03-03)
+### v1.5.0 (2026-03-29)
+
+#### ✨ 核心功能增强
+- 🔄 **双格式厂商动态端点路由** - 根据请求端点类型自动选择正确的模型配置
+  - 支持双格式的厂商 (qwen/bailian) 根据请求端点自动路由到对应的 API
+  - OpenAI 格式请求 → 使用 `api_spec=openai` 的模型配置 (api_base + api_path)
+  - Anthropic 格式请求 → 使用 `api_spec=anthropic` 的模型配置 (api_base + api_path)
+  - 直接使用模型配置的 API Base 和 API Path，不做动态修改
+
+#### 🐛 Bug 修复
+- ✅ 修复双格式厂商模型选择逻辑，修复指定模型时未正确选择对应 api_spec 记录的问题
+- ✅ 修复 `/v1/messages` 端点路由，Anthropic 端点的模型配置选择逻辑
+- ✅ 修复 `/v1/chat/completions` 端点路由，OpenAI 端点的模型配置选择逻辑
+- ✅ 恢复 thinking 字段到允许列表（由 router 层按需过滤）
+
+#### 📚 文档更新
+- ✅ 更新 CHANGELOG 记录 1.5.0 版本
+- ✅ 更新国内厂商 API 配置文档
+
+---
+
+### v1.4.9 (2026-03-29)
+
+#### 🔧 百炼 Anthropic 原生支持
+- ✅ 修正阿里百炼平台的 Anthropic 格式支持方式
+- ✅ 百炼平台原生支持 Anthropic 格式，不需要转换
+- ✅ 更新 `anthropic_compat_base` 为 `https://coding.dashscope.aliyuncs.com/apps/anthropic`
+- ✅ `api_spec_support` 改为 `["openai", "anthropic"]`（原生支持两种格式）
+
+---
+
+### v1.4.8 (2026-03-28)
 
 #### 🚀 核心功能增强
 - 🔄 **Auto 模型模式** - 新增 `auto` 模型选项，支持自动切换至最高优先级可用模型
